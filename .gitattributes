@@ -1,3 +1,11 @@
+# 줄바꿈은 전부 LF 로 고정한다.
+#
+# 이 컴퓨터는 core.autocrlf=true 라 두면 체크아웃할 때 CRLF 로 바뀜다.
+# janggi-board 에서 그 혼용 때문에 파일을 고치는 스크립트가 **조용히 0건을 찾고**
+# 아무 일도 안 한 적이 있다. 오류가 안 나서 고친 줄 알고 넘어가게 된다.
+# 서버가 돌 곳(리눅스 컨테이너)도 LF 라 맞추는 쪽이 맞다.
+* text=auto eol=lf
+
 /gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
