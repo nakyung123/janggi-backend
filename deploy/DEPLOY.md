@@ -84,12 +84,86 @@ gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
   --location=asia-northeast1 --policy=deploy/cleanup-policy.json --dry-run
 ```
 
-**지금은 `--dry-run` 이다.** 진짜로 지우게 하려면 `--no-dry-run` 으로 다시 건다.
-dry-run 결과는 반영에 하루쯤 걸리므로, 하루 뒤 감사 로그에서 무엇이 지워질지 보고
-바꾼다. **지우는 것은 되돌릴 수 없다.**
+**2026-10-10 에 `--no-dry-run` 으로 바꿨다.** 하루 기다려 dry-run 결과를 보려 했는데
+**기다려도 배울 것이 없었다** - 이미지가 1판뿐이라 지울 대상이 0개다. 자동 배포가 켜지면
+푸시마다 이미지가 쌓이므로 **울타리를 먼저 세우고 수도를 틀었다.**
+
+**좁은 길 하나.** `--min-instances=0` 이라 쉬다 깨어날 때마다 이미지를 새로 받는다. 쓰고
+있는 이미지가 지워지면 **그때 서비스가 깨진다.** 최신 5판은 보호되고 배포는 항상 최신으로
+트래픽을 옮기니, 이 일이 나려면 "트래픽이 옛 리비전에 머문 채 5번 더 푸시" 가 필요하다.
+좁지만 되돌릴 수 없는 쪽이라 적어 둔다.
+
+## 자동 배포 - 한 번만 하는 준비
+
+`main` 에 올리면 `.github/workflows/ci.yml` 이 **시험한 그 이미지를** Cloud Run 에
+올린다. 그러려면 GitHub 이 GCP 에 들어올 수 있어야 한다.
+
+**열쇠 파일(JSON 키)을 쓰지 않는다.** 그 파일은 만료가 없어서, 한 번 새면 영구히 쓸 수
+있다. **이 저장소는 공개라** 더더욱 그렇다. 대신 GitHub 이 서명한 증서를 GCP 가 확인하는
+방식(Workload Identity Federation)을 쓴다 - 토큰 수명이 15분이고 저장할 비밀이 없다.
+
+아래는 **한 번만** 돌린다.
+
+```bash
+P=janggi-events
+NUM=982664928901
+SA=github-deploy@$P.iam.gserviceaccount.com
+RUNTIME=$NUM-compute@developer.gserviceaccount.com
+GH=nakyung123/janggi-events
+
+# 0. 토큰을 바꿔 주는 창구. 꺼져 있었다.
+gcloud services enable sts.googleapis.com --project=$P
+
+# 1. 배포만 하는 계정
+gcloud iam service-accounts create github-deploy \
+  --display-name="GitHub Actions 배포용" --project=$P
+
+# 2. 권한 셋.
+#    run.admin 이 아니라 run.developer 다 - setIamPolicy 가 빠져 있어서
+#    "누가 부를 수 있나" 는 못 바꾼다. 그래서 워크플로에 --allow-unauthenticated 가 없다.
+gcloud projects add-iam-policy-binding $P \
+  --member="serviceAccount:$SA" --role=roles/run.developer
+gcloud projects add-iam-policy-binding $P \
+  --member="serviceAccount:$SA" --role=roles/artifactregistry.writer
+gcloud iam service-accounts add-iam-policy-binding $RUNTIME \
+  --member="serviceAccount:$SA" --role=roles/iam.serviceAccountUser --project=$P
+
+# 3. 신원 풀과 제공자
+gcloud iam workload-identity-pools create github \
+  --location=global --display-name="GitHub" --project=$P
+
+#    attribute-condition 이 이 설정 전체에서 가장 중요한 줄이다.
+#    이것이 빠지면 아무 GitHub 저장소나 우리 계정으로 들어온다.
+gcloud iam workload-identity-pools providers create-oidc janggi-events \
+  --location=global --workload-identity-pool=github --project=$P \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository == '$GH'"
+
+# 4. 그 저장소에서 온 것만 이 계정을 쓸 수 있게 묶는다
+gcloud iam service-accounts add-iam-policy-binding $SA \
+  --role=roles/iam.workloadIdentityUser --project=$P \
+  --member="principalSet://iam.googleapis.com/projects/$NUM/locations/global/workloadIdentityPools/github/attribute.repository/$GH"
+```
+
+끌어온 PR(fork)에서는 배포가 돌지 않는다. 울타리가 둘이다 - 워크플로의 조건이
+`push` + `main` 만 받고, 위의 `attribute-condition` 이 저장소를 묶는다.
+
+## 되돌리기
+
+자동 배포가 깨진 것을 올렸을 때.
+
+```bash
+gcloud run revisions list --service=janggi-events --region=asia-northeast1
+
+gcloud run services update-traffic janggi-events \
+  --region=asia-northeast1 --to-revisions=<옛-리비전-이름>=100
+```
+
+**2026-10-10 현재 리비전이 1개뿐이라 되돌릴 자리가 없다.** 자동 배포가 한 번 돌아 2판이
+생긴 뒤부터 쓸 수 있다. 그때까지는 앞 커밋으로 다시 푸시하는 것이 되돌리는 길이다.
 
 ## 아직 안 한 것
 
-- 삭제 정책을 `--no-dry-run` 으로 전환 (하루 뒤)
-- 지출 한도가 무료 사용량을 세는지 실제 값으로 확인 (하루 뒤)
-- `vercel.json` 되돌림으로 같은 출처 만들기 (1-4)
+- 지출 한도가 무료 사용량을 세는지 실제 값으로 확인 (2026-10-11 아침)
+- 내 권한을 배포용 계정 수준으로 좁히기 (자동 배포가 돈 다음)
