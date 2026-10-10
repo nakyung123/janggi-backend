@@ -1,0 +1,12 @@
+# 이미지에 넣을 필요가 없는 것. 빌드 맥락이 작을수록 빌드가 빠르고, 실수로 들어가는
+# 것도 없다.
+.git
+.gitignore
+.gitattributes
+build
+.gradle
+*.md
+.env
+.env.*
+.idea
+*.iml

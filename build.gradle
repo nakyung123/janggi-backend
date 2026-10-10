@@ -30,3 +30,10 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// 그래들의 기본 jar 를 만들지 않는다. 부트 jar 와 둘이 나와서 Dockerfile 의 COPY 가
+// 어느 쪽을 집을지 몰라 빌드가 멈췄다. 이건 라이브러리가 아니라 혼자 도는 서버라서
+// 기본 jar 는 쓸 일이 없다.
+tasks.named('jar') {
+	enabled = false
+}
