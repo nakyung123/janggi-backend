@@ -27,15 +27,27 @@ Cloud Run (여기)        기록을 받는다    <- 없어도 장기는 둬진�
 ## 어디에 무엇이 있나
 
 ```
-com.nakyung.janggi.events/
-├── JanggiEventsApplication.java
-├── event/                    기능 하나
-│   ├── EventController.java  받는다 (얇게)
-│   ├── EventName.java        받아들이는 이름 목록. 여기가 유일한 기준
-│   ├── EventService.java     거르고 적는다
-│   └── dto/                  주고받는 모양
-└── common/exception/         400 으로 바꾸는 자리
+janggi-events/
+├── Dockerfile  .dockerignore            이미지
+├── src/main/resources/
+│   ├── application.properties           어디서나
+│   ├── application-cloud.properties     Cloud Run 에서만 (프로파일 cloud)
+│   └── logback-spring.xml               로그를 어떤 모양으로 내보내나
+└── src/main/java/com/nakyung/janggi/events/
+    ├── JanggiEventsApplication.java
+    ├── event/                    기능 하나
+    │   ├── EventController.java  받는다 (얇게)
+    │   ├── EventName.java        받아들이는 이름 목록. 여기가 유일한 기준
+    │   ├── EventService.java     거르고 적는다
+    │   └── dto/                  주고받는 모양
+    └── common/
+        ├── exception/            400 으로 바꾸는 자리
+        ├── guard/                입구에 선 문지기 (크기 · 건수)
+        └── logging/              로그를 구글이 알아보는 모양으로
 ```
+
+**`common/` 은 기능이 아니라 모든 입구에 공통으로 걸리는 것들이다.** 기보 저장 같은
+기능이 붙어도 문지기와 로그 모양은 그대로 적용돼야 해서 `event/` 안에 두지 않았다.
 
 **기능별로 묶는다.** 지금은 기능이 하나뿐이라 계층형과 똑같아 보이지만, 기보 저장
 같은 것이 붙으면 **폴더 하나가 느는 것**으로 끝난다. 계층형이면 네 폴더를 돌아다녀야
@@ -57,6 +69,9 @@ Data 의 `JpaRepository` 자체가 이미 그 경계다 - 저장소를 갈아탈
 | `com.fasterxml.jackson.databind.ObjectMapper` | **`tools.jackson.databind.ObjectMapper`** (Jackson 3) |
 | `JsonProcessingException` | **`tools.jackson.core.JacksonException`** |
 | `org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest` | **`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`** |
+| `logging.structured.format.console=gcp` | **그런 값은 없다.** `ecs`·`gelf`·`logstash` 뿐 |
+| `@Valid List<T>` | **`List<@Valid T>`** (바깥에 붙이면 HV000271 폐기 경고) |
+| `HttpStatus.PAYLOAD_TOO_LARGE` | **`CONTENT_TOO_LARGE`** (RFC 9110 에서 이름이 바뀜) |
 
 **모르는 클래스는 짐작하지 말고 jar 를 열어 본다.**
 
@@ -79,6 +94,45 @@ Boot 3.5 는 2026-06-30 에, 4.0 은 2026-12-31 에 지원이 끝난다. 그래�
   적어 뒀다. 저장소에 내 컴퓨터 경로를 박으면 남이 받았을 때 깨진다.
 - **한글이 든 요청을 셸에서 `curl -d` 로 보내면 깨진다.** 본문을 UTF-8 파일로 쓰고
   `--data-binary @파일` 로 보낸다.
+- **셸을 거치면 역슬래시가 먹힌다.** 파이썬 heredoc 안에 자바의 `"
+"` 을 적었는데
+  진짜 줄바꿈이 되어 문자열이 끊겼다. **자바 파일은 `cat > 파일 <<'JAVA'` 로 통째로
+  쓰고**, 파이썬이 필요하면 스크립트를 파일로 저장해 `python -I <파일>` 로 돌린다.
+
+## 로그가 검색되는 모양
+
+**Cloud Logging 은 stdout 의 한 줄이 _전체가_ JSON 일 때만** 그것을 뜯어 칸으로 만든다.
+앞에 시각이나 레벨이 붙으면 줄을 통째로 글자로 넣어서 조건 검색이 안 된다. 그래서 두
+갈래로 내보낸다.
+
+| 무엇 | 어떻게 | 왜 |
+| --- | --- | --- |
+| 이벤트 기록 | `janggi.events.record` 로거 → 메시지만 | 칸으로 뜯혀야 세고 걸러낼 수 있다 |
+| 스프링 자신의 로그 | `GcpStructuredLogFormatter` | 예외 스택이 **한 건**으로 묶인다 |
+
+짚을 것 셋.
+
+- **로거 이름이 `logback-spring.xml` 과 짝이다.** `EventService` 의
+  `janggi.events.record` 와 XML 의 `<logger name=...>` 중 한쪽만 바꾸면 연결이 끊겨
+  이벤트 줄 앞에 장식이 붙는다. 오류는 안 난다 - **검색만 조용히 안 된다.**
+- **`additivity="false"` 를 지우면 같은 줄이 두 번 찍힌다.** 건수가 두 배로 들어와
+  나중에 숫자를 못 믿는다.
+- **`gcp` 라는 형식은 없다.** 부트가 주는 건 `ecs`·`gelf`·`logstash` 뿐이라 클래스
+  이름을 직접 적는다. 까닭은 `GcpStructuredLogFormatter` 주석에 있다.
+
+## 도커
+
+- **`COPY` 뒤에 `RUN chown` 을 쓰지 않는다.** 도커가 같은 파일을 새 층에 통째로 다시
+  복사해서 jar 가 이미지에 **두 번** 들어간다(23.7MB 를 그냥 버렸다).
+  `COPY --chown=app:app` 으로 붙인다. Artifact Registry 무료 보관이 0.5GB 뿐이라
+  버전당 그만큼이 보관 가능한 버전 수를 반으로 줄인다.
+- **`ENTRYPOINT` 를 대괄호 형태로 쓴다.** 문자열로 쓰면 `sh` 가 1번 프로세스가 되어
+  **SIGTERM 을 자바에게 넘기지 않는다.** 그러면 `server.shutdown=graceful` 이 아무
+  일도 못 하고, Cloud Run 이 서버를 줄일 때 처리 중이던 기록이 사라진다.
+  확인법 - `docker stop` 하고 **"Graceful shutdown complete" 가 찍히는지** 본다.
+  넘어가지 않으면 10초를 기다렸다 강제로 죽는다.
+- **그래들의 기본 `jar` 는 끄고 부트 jar 만 만든다.** 둘 다 있으면 `COPY *.jar` 가
+  어느 쪽인지 몰라 빌드가 멈춘다.
 
 ## 깨뜨리면 안 되는 것
 
@@ -89,8 +143,14 @@ Boot 3.5 는 2026-06-30 에, 4.0 은 2026-12-31 에 지원이 끝난다. 그래�
   있다.
 - **모르는 이벤트 이름은 거절한다.** 느슨하게 받으면 나중에 숫자를 못 믿는다. 대가로
   순서가 생긴다 - **프런트에 새 이벤트를 더할 때는 서버를 먼저 배포한다.**
-- **공개 주소다.** 누구나 부를 수 있다. 새 입구를 만들 때마다 크기 제한과 요청 수
-  제한을 같이 생각한다.
+- **공개 주소다.** 누구나 부를 수 있다. 새 입구를 만들면 `common/guard` 의
+  `GuardConfig` 에 **그 주소를 같이 등록한다.** 문지기는 주소를 하나하나 적어 붙이게
+  돼 있어서, 잊으면 그 입구만 아무 제한 없이 열린다.
+- **문지기를 모든 주소에 붙이지 않는다.** 상태 확인(`/actuator/health`)까지 걸리면
+  몰아치는 동안 Cloud Run 이 "죽었다" 고 보고 다시 띄우는데, 그 콜드 스타트가 또
+  요금이다. 테스트가 이것을 지키고 있다 - 한도에 막힌 뒤에도 상태 확인이 200 인지 본다.
+- **`X-Forwarded-For` 로 사람을 가르지 않는다.** Cloud Run 주소를 직접 때리는 쪽에서
+  마음대로 적을 수 있는 값이다. 꾸밀 수 있는 값으로 세는 것은 제한이 아니다.
 
 ## 끝내기 전에 돌릴 것
 
@@ -109,6 +169,22 @@ java -jar build/libs/janggi-events-0.0.1-SNAPSHOT.jar
 curl -X POST localhost:8080/events -H "Content-Type: application/json" --data-binary @본문.json
 ```
 
+**이미지를 고쳤으면 컨테이너로도 띄워 본다.** jar 로 되는 것과 이미지로 되는 것은
+다르다 - `gcp` 형식이 없다는 것도, jar 는 멀쩡한데 컨테이너가 시작조차 못 하면서 드러났다.
+
+```bash
+docker build -t janggi-events:dev .
+docker run -d --name t -p 8080:9090 -e PORT=9090 janggi-events:dev
+curl -s -o /dev/null -w '%{http_code}
+' localhost:8080/actuator/health   # 200
+docker logs t                      # 줄마다 전체가 JSON 인지
+docker stop t && docker logs t | tail -2   # Graceful shutdown complete 가 있는지
+docker rm -f t
+```
+
+로그는 **눈으로 보지 말고 줄마다 파싱해 본다.** 한 줄이라도 JSON 이 아니면 그 줄은
+Cloud Logging 에서 검색되지 않는다.
+
 끌 때 `pkill` 은 안 먹는다. 포트로 잡는다.
 
 ```powershell
@@ -118,9 +194,13 @@ Get-NetTCPConnection -LocalPort 8080 -State Listen |
 
 ## 아직 없는 것
 
-DB · 도커 · 레이트 리밋 · 크기 제한 · `/stats`. 순서는 **배포로 관을 먼저 뚫고**
-그다음 DB 다. 로그만으로도 Cloud Logging 이 30일 보관하므로 그 사이 데이터가
-버려지지 않는다.
+DB · `/stats` · 프런트 연결. 순서는 **배포로 관을 먼저 뚫고** 그다음 DB 다. 로그만으로도
+Cloud Logging 이 30일 보관하므로 그 사이 데이터가 버려지지 않는다.
+
+**굳이 안 한 것** - 콜드 스타트를 더 줄이는 길(CDS 미리 만들기, 층 나눠 담기)은 두었다.
+지금 2.4초이고 한 달 콜드 스타트를 다 합쳐도 무료 한도의 1.3% 라서, 복잡해지는 값이
+얻는 것보다 크다. **사람이 기다리는 길 위에 없다는 것이 이 판단의 근거다** - 그 전제가
+바뀌면 다시 본다.
 
 **DB 가 생기면 규칙 둘이 여기 들어온다** - 한 요청이 반쯤 적히지 않게(원자성), 같은
 이벤트가 두 번 와도 꼬이지 않게(멱등성). `sendBeacon` 은 at-least-once 라 재전송이
