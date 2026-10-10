@@ -75,6 +75,12 @@ class GcpStructuredLogFormatterTest {
         Map<String, Object> 결과 = 찍어보기(Level.INFO, "사파리 17 · 아이폰", null);
 
         assertThat((String) 결과.get("message")).isEqualTo("사파리 17 · 아이폰");
-        assertThat((String) 결과.get("message")).doesNotContain("�");
+
+        // 깨진 글자를 소스에 적지 않고 번호로 만든다. 자바의 유니코드 이스케이프로
+        // 적으면, 그 글자를 거쳐 가는 도구가 역슬래시를 먹는 순간 **진짜 깨진 글자
+        // 한 개**가 소스에 박힌다. 실제로 그렇게 박혔었고, 테스트는 의미가 같아서
+        // 그대로 통과해서 아무도 몰랐다. 깨진 글자를 찾는 CI 가 생기고서야 드러났다.
+        // 번호로 만들면 거쳐 가는 도구가 손댈 글자가 없다.
+        assertThat((String) 결과.get("message")).doesNotContain(String.valueOf((char) 0xFFFD));
     }
 }
