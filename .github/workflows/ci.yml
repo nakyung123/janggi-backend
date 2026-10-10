@@ -1,0 +1,116 @@
+# 푸시할 때마다 깨끗한 리눅스에서 다시 확인한다.
+#
+# 테스트만 돌리지 않고 **컨테이너까지 띄워 본다.** 2026-10-10 에 jar 로는 멀쩡한데
+# 컨테이너가 시작조차 못 한 일이 있었다(없는 로그 형식 이름). 이미지로 돌려야만
+# 드러나는 종류가 있다.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: gradle
+
+      - name: 테스트와 빌드
+        run: ./gradlew --no-daemon clean build
+
+      # "BUILD SUCCESSFUL" 만 보고 넘어가지 않는다. 테스트가 UP-TO-DATE 로 건너뛰었을
+      # 수 있어서, 몇 개가 실제로 돌았는지 센다. 0개면 실패로 본다.
+      - name: 테스트가 실제로 돌았는지 센다
+        run: |
+          # bc 가 깔려 있다고 가정하지 않는다. awk 는 어디에나 있다.
+          N=$(grep -ho 'tests="[0-9]*"' build/test-results/test/*.xml |
+                grep -o '[0-9]*' | awk '{s+=$1} END {print s+0}')
+          echo "돌아간 테스트: ${N:-0}개"
+          if [ "${N:-0}" -lt 1 ]; then
+            echo "::error::테스트가 하나도 돌지 않았습니다."
+            exit 1
+          fi
+
+      - name: 이미지 만들기
+        run: docker build -t janggi-events:ci .
+
+      - name: 띄워서 직접 불러 본다
+        run: |
+          docker run -d --name ci -p 8080:9090 -e PORT=9090 janggi-events:ci
+
+          for i in $(seq 1 30); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 \
+                    http://localhost:8080/actuator/health)" = "200" ]; then
+              echo "준비됨 (${i}초)"; break
+            fi
+            # 기다리기 전에 살아 있는지부터 본다. 죽은 것을 끝까지 기다린 적이 있다.
+            if [ -z "$(docker ps -q -f name=ci)" ]; then
+              echo "::error::컨테이너가 죽었습니다."
+              docker logs ci; exit 1
+            fi
+            sleep 1
+          done
+
+          기대() { printf '  %-22s 기대 %s  받음 %s\n' "$1" "$2" "$3"
+                   [ "$2" = "$3" ] || { echo "::error::$1 이 다릅니다."; exit 1; }; }
+
+          # 한글이 든 본문은 파일로 만들어 보낸다. 셸을 거치면 글자가 변한다.
+          printf '%s' '{"events":[{"name":"app_open","sid":"ci01","browser":"사파리 17","os":"아이폰"}]}' > ok.json
+          printf '%s' '{"events":[{"name":"없는이름","sid":"ci02"}]}' > bad.json
+
+          기대 "제대로"      204 "$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+                 localhost:8080/events -H 'Content-Type: application/json' --data-binary @ok.json)"
+          기대 "모르는 이름" 400 "$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+                 localhost:8080/events -H 'Content-Type: application/json' --data-binary @bad.json)"
+          기대 "상태 확인"   200 "$(curl -s -o /dev/null -w '%{http_code}' \
+                 localhost:8080/actuator/health)"
+
+      # 여기가 핵심이다. 우리 앱이 내보낸 줄은 **전부가 JSON** 이어야 Cloud Logging 이
+      # 칸으로 뜯는다. 한 줄이라도 아니면 그 줄은 영영 검색되지 않는다.
+      - name: 로그가 칸으로 뜯기는 모양인지
+        run: |
+          docker logs ci > app.log 2>&1
+          python3 - <<'PY'
+          import io, json
+          줄 = [l for l in io.open("app.log", encoding="utf-8", errors="replace")
+                .read().splitlines() if l.strip()]
+          글자, 이벤트 = [], 0
+          for l in 줄:
+              try:
+                  d = json.loads(l)
+              except ValueError:
+                  글자.append(l); continue
+              if "evt" in d:
+                  이벤트 += 1
+          print("줄 %d개 · 이벤트 %d건 · JSON 이 아닌 줄 %d개" % (len(줄), 이벤트, len(글자)))
+          for l in 글자[:5]:
+              print("  JSON 아님:", l[:120])
+          깨짐 = io.open("app.log", encoding="utf-8", errors="replace").read().count("\N{REPLACEMENT CHARACTER}")
+          print("깨진 글자:", 깨짐)
+          if 글자:   raise SystemExit("::error::JSON 이 아닌 줄이 있습니다.")
+          if 깨짐:   raise SystemExit("::error::로그에 깨진 글자가 있습니다.")
+          if 이벤트 < 1: raise SystemExit("::error::이벤트가 하나도 안 적혔습니다.")
+          PY
+
+      - name: 치우기
+        if: always()
+        run: docker rm -f ci || true
+
+      # 2026-10-08 에 자동 PR 이 한글 세 글자를 날린 일이 있었다. 영어만 있는 파일에서는
+      # 안 생겨서 도구들이 못 보고 지나간다. 세 바이트를 printf 로 만들어 그대로 찾는다.
+      - name: 깨진 글자 검사
+        run: |
+          PAT=$(printf '\xef\xbf\xbd')
+          if git grep -lF "$PAT" -- . ; then
+            echo "::error::위 파일에 깨진 글자가 있습니다."
+            exit 1
+          fi
+          echo "깨끗"
