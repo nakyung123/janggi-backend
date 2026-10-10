@@ -1,5 +1,6 @@
 package com.nakyung.janggi.events.common.guard;
 
+import java.time.Duration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,7 +27,8 @@ public class GuardConfig {
     @Bean
     FilterRegistrationBean<RateLimitFilter> rateLimit(GuardProperties props) {
         FilterRegistrationBean<RateLimitFilter> bean =
-                new FilterRegistrationBean<>(new RateLimitFilter(props.limitPerMinute()));
+                new FilterRegistrationBean<>(
+                        new RateLimitFilter(props.limitPerMinute(), Duration.ofMinutes(1)));
         bean.addUrlPatterns(PATH);
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return bean;

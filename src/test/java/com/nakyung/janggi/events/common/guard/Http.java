@@ -42,6 +42,19 @@ final class Http {
                                         () -> new ByteArrayInputStream(bytes))));
     }
 
+    /** 사전 요청. 본문이 없다. */
+    static HttpResponse<String> options(int port) throws Exception {
+        return send(
+                request(port)
+                        .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                        .header("Origin", "https://janggi-ai.vercel.app")
+                        .header("Access-Control-Request-Method", "POST"));
+    }
+
+    static HttpResponse<String> get(int port) throws Exception {
+        return send(request(port).GET());
+    }
+
     static HttpResponse<String> getHealth(int port) throws Exception {
         return send(
                 HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/actuator/health"))

@@ -52,6 +52,19 @@ class RequestSizeFilterTest {
     }
 
     @Test
+    @DisplayName("본문 없는 메서드는 길이를 따지지 않는다")
+    void 사전_요청() throws Exception {
+        // 브라우저는 교차 출처로 보내기 전에 본문 없는 OPTIONS 를 먼저 던진다. 그걸
+        // "길이를 안 알려줬다" 며 411 로 돌려보내면 **본 요청은 아예 오지 않는다.**
+        // 지금은 같은 출처로 쓸 계획이라 사전 요청이 안 생기지만, 그 전제가 바뀌는
+        // 순간 원인 찾기 어려운 고장이 된다.
+        assertThat(Http.options(port).statusCode()).isNotEqualTo(411);
+
+        // GET 도 본문이 없다. 길이 문제가 아니라 "그런 메서드는 없다"(405)로 답해야 한다.
+        assertThat(Http.get(port).statusCode()).isEqualTo(405);
+    }
+
+    @Test
     @DisplayName("상태 확인은 크기 문지기를 거치지 않는다")
     void 상태_확인은_통과() throws Exception {
         // GET 에는 길이가 없다. 문지기가 모든 주소에 붙어 있었다면 여기서 411 이 난다.

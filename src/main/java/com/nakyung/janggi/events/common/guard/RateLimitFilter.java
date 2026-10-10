@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
@@ -13,7 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 1분에 정해진 건수보다 많이 오면 거절한다.
+ * 정해진 시간 안에 정해진 건수보다 많이 오면 거절한다.
  *
  * <p><b>왜 IP 별이 아니라 전체인가.</b> 이 서버는 Vercel 의 되돌림을 거쳐서 불린다 -
  * 그러면 요청이 전부 Vercel 의 주소에서 오는 것으로 보여서 IP 별로 세는 것이 아무 의미가
@@ -32,9 +33,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
-    private static final long WINDOW_NANOS = 60_000_000_000L;
+    private final int limit;
 
-    private final int limitPerMinute;
+    /**
+     * 창의 길이. 돌 때는 1분이고, <b>테스트에서는 짧게 넣는다.</b> 상수로 박아 두면
+     * "창이 지나면 다시 받는다" 를 확인하려고 테스트가 1분을 기다려야 해서, 결국 아무도
+     * 확인하지 않는 부분이 된다. 창이 초기화되지 않으면 서버는 한도에 한 번 닿은 뒤
+     * <b>영원히 거절한다.</b>
+     */
+    private final long windowNanos;
 
     private final AtomicLong windowStart = new AtomicLong(System.nanoTime());
     private final AtomicLong count = new AtomicLong();
@@ -42,8 +49,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     /** 한 창에서 거절을 한 번만 적기 위한 표시. */
     private final AtomicBoolean reported = new AtomicBoolean();
 
-    public RateLimitFilter(int limitPerMinute) {
-        this.limitPerMinute = limitPerMinute;
+    public RateLimitFilter(int limit, Duration window) {
+        this.limit = limit;
+        this.windowNanos = window.toNanos();
     }
 
     @Override
@@ -55,9 +63,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
             if (reported.compareAndSet(false, true)) {
                 // 창마다 한 번만 적는다. 몰아치는 동안 거절마다 적으면 로그가 요금이 된다
                 // (로그는 한 달 50GiB 까지 무료다).
-                log.warn("요청이 1분 한도({}건)를 넘어 거절하고 있습니다.", limitPerMinute);
+                log.warn("요청이 한도({}건)를 넘어 거절하고 있습니다.", limit);
             }
-            response.setHeader("Retry-After", "60");
+            response.setHeader("Retry-After", Long.toString(windowNanos / 1_000_000_000L));
             Problems.write(response, HttpStatus.TOO_MANY_REQUESTS, "조금 뒤에 다시 보내 주세요.");
             return;
         }
@@ -69,7 +77,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         long now = System.nanoTime();
         long start = windowStart.get();
 
-        if (now - start >= WINDOW_NANOS) {
+        if (now - start >= windowNanos) {
             // 창을 넘긴 첫 요청만 초기화한다. 동시에 여럿이 들어와도 한 번만 성공한다.
             if (windowStart.compareAndSet(start, now)) {
                 count.set(0);
@@ -79,6 +87,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         // 세는 것과 창을 바꾸는 것이 완전히 맞물려 있지는 않아서 창이 바뀌는 순간 몇 건이
         // 더 통과할 수 있다. 요금을 묶는 것이 목적이라 그 정도 오차는 받아들인다.
-        return count.incrementAndGet() <= limitPerMinute;
+        return count.incrementAndGet() <= limit;
     }
 }

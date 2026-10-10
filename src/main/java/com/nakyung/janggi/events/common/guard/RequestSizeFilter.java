@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -24,6 +25,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class RequestSizeFilter extends OncePerRequestFilter {
 
+    /**
+     * 본문을 가질 수 있는 메서드. 이것만 검사한다.
+     *
+     * <p><b>이 구분이 없으면 CORS 사전 요청이 막힌다.</b> 브라우저는 교차 출처로
+     * 보내기 전에 본문 없는 {@code OPTIONS} 를 먼저 던지는데, 그걸 "길이를 안 알려줬다"
+     * 며 411 로 돌려보내면 <b>본 요청은 아예 오지도 않는다.</b> 지금 계획은 Vercel
+     * 되돌림으로 같은 출처가 되게 하는 것이라 사전 요청이 생기지 않지만, 그 전제가
+     * 바뀌는 순간 원인 찾기 어려운 고장이 된다. {@code GET} · {@code HEAD} 도 본문이
+     * 없어서 길이를 따질 일이 없다(둘 다 MVC 가 405 로 답하는 것이 맞다).
+     */
+    private static final Set<String> 본문을_가질_수_있는_메서드 = Set.of("POST", "PUT", "PATCH");
+
     private final long maxBytes;
 
     public RequestSizeFilter(long maxBytes) {
@@ -34,6 +47,11 @@ public class RequestSizeFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+
+        if (!본문을_가질_수_있는_메서드.contains(request.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         long length = request.getContentLengthLong();
 
