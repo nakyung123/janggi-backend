@@ -1,19 +1,37 @@
-# 푸시할 때마다 깨끗한 리눅스에서 다시 확인한다.
+# 푸시할 때마다 깨끗한 리눅스에서 다시 확인하고, main 이면 올린다.
 #
 # 테스트만 돌리지 않고 **컨테이너까지 띄워 본다.** 2026-10-10 에 jar 로는 멀쩡한데
 # 컨테이너가 시작조차 못 한 일이 있었다(없는 로그 형식 이름). 이미지로 돌려야만
 # 드러나는 종류가 있다.
+#
+# **확인과 배포를 한 일감에 둔 까닭** - 올리는 것이 위에서 띄워 보고 찔러 본 그
+# 이미지여야 한다. 일감을 나누면 330MB 를 주고받아야 하고, 다시 지으면 **시험한
+# 바이트와 나간 바이트가 달라진다.** 같은 소스라도 그렇다.
 
-name: CI
+name: CI 와 배포
 
 on:
   push:
     branches: [main]
   pull_request:
 
+# 한 번에 하나만 돈다. main 에 빨리 두 번 올리면 **오래된 커밋이 나중에 배포되는** 일이
+# 생기고, 그러면 되돌아간 줄도 모르고 되돌아간다. 취소하지 않고 줄을 세운다 - 배포
+# 도중에 끊기는 것이 더 나쁘다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # `id-token` 이 있어야 GCP 에 열쇠 없이 들어간다. 이것이 빠지면 인증이 아예 안 되는데
+    # 오류가 "unable to get credentials" 로 나와서 엉뚱한 데를 보게 된다.
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -114,3 +132,76 @@ jobs:
             exit 1
           fi
           echo "깨끗"
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 여기서부터 배포. main 에 푸시했을 때만 돈다.
+      #
+      # **맨 뒤에 둔 것이 안전장치다.** 위의 깨진 글자 검사가 마지막 검사인데, 배포를
+      # 그 앞에 두면 깨진 소스가 그대로 올라간다. 순서가 곧 규칙이다.
+      #
+      # 끌어온 PR 에서는 돌지 않는다 - `pull_request` 는 이름이 달라 조건에 걸린다.
+      # 신원 쪽에도 "이 저장소에서 온 것만" 조건이 걸려 있어 울타리가 둘이다.
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: GCP 에 들어가기 (열쇠 파일 없이)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: janggi-events
+          workload_identity_provider: projects/982664928901/locations/global/workloadIdentityPools/github/providers/janggi-events
+          service_account: github-deploy@janggi-events.iam.gserviceaccount.com
+
+      - name: gcloud 준비
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: 시험한 그 이미지를 올린다
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          REPO=asia-northeast1-docker.pkg.dev/janggi-events/cloud-run-source-deploy/janggi-events
+          gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
+
+          docker tag janggi-events:ci "$REPO:$GITHUB_SHA"
+          docker push "$REPO:$GITHUB_SHA"
+
+          # **태그가 아니라 digest 로 배포한다.** 태그는 나중에 다른 이미지를 가리킬 수
+          # 있어서, 리비전이 무엇으로 돌고 있는지 나중에 알 수 없게 된다.
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$REPO:$GITHUB_SHA")
+          echo "올릴 것: $DIGEST"
+          echo "IMAGE=$DIGEST" >> "$GITHUB_ENV"
+
+      - name: Cloud Run 에 올린다
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # 설정값을 매번 적어 넣는다. 적지 않으면 서비스에 남은 값이 쓰이는데, 그러면
+          # **어디에 무엇이 걸려 있는지 아무 데도 안 적혀 있는** 상태가 된다.
+          #
+          # `--allow-unauthenticated` 는 일부러 뺐다. 그것은 "누가 부를 수 있나" 를
+          # 바꾸는 일(setIamPolicy)이고, 배포 계정에는 그 권한이 없다. 서비스에 이미
+          # 걸려 있어서 리비전이 바뀌어도 그대로다.
+          gcloud run deploy janggi-events \
+            --image="$IMAGE" \
+            --region=asia-northeast1 \
+            --max-instances=2 \
+            --min-instances=0 \
+            --timeout=30s \
+            --memory=512Mi \
+            --cpu=1 \
+            --quiet
+
+      - name: 올라간 것을 실제로 찔러 본다
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          U=https://janggi-events-982664928901.asia-northeast1.run.app
+
+          기대() { printf '  %-22s 기대 %s  받음 %s\n' "$1" "$2" "$3"
+                   [ "$2" = "$3" ] || { echo "::error::$1 이 다릅니다."; exit 1; }; }
+
+          기대 "상태 확인" 200 "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+                 "$U/actuator/health")"
+
+          # **env 를 dev 로 박는다.** 이걸 빼면 배포마다 한 건씩 실제 통계에 섞인다.
+          # sid 에 커밋을 넣어 두면 나중에 "이건 배포 확인이었다" 를 알아볼 수 있다.
+          printf '%s' "{\"events\":[{\"name\":\"app_open\",\"sid\":\"cd${GITHUB_SHA:0:6}\",\"browser\":\"배포확인\",\"env\":\"dev\"}]}" > cd.json
+          기대 "이벤트 받기" 204 "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+                 -X POST "$U/events" -H 'Content-Type: application/json' --data-binary @cd.json)"
