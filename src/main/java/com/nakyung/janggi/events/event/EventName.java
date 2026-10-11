@@ -22,7 +22,24 @@ public enum EventName {
     /** 엔진이 떠서 판을 둘 수 있게 됐다. */
     ENGINE_READY("engine_ready"),
     /** 엔진이 못 떴다. 지금 유일하게 알려진 장애다. */
-    ENGINE_FAILED("engine_failed");
+    ENGINE_FAILED("engine_failed"),
+
+    /*
+     * 여기부터는 깔때기의 아래쪽이다.
+     *
+     * 2026-10-11 까지 모은 것으로 "엔진이 뜨나" 에는 답이 났다 - 아홉 명 중 아홉 명이
+     * 떴다. 그런데 머문 시간이 6초인 사람과 743초인 사람이 있고 <b>그 사이에 무엇을
+     * 했는지를 모른다.</b> 다음 질문은 "그럼 왜 떠나나" 이고, 그것을 재려고 넷을 더한다.
+     */
+
+    /** 판을 시작했다. 보기만 하고 간 사람과 가른다. */
+    GAME_START("game_start"),
+    /** 한 수라도 뒀다. <b>깔때기에서 제일 크게 깎일 자리로 본다.</b> */
+    FIRST_MOVE("first_move"),
+    /** 판이 끝났다. 이겼든 졌든 기권이든. */
+    GAME_END("game_end"),
+    /** 복기를 열었다. 쓰는 사람이 있는지 아직 모른다. */
+    REVIEW_OPEN("review_open");
 
     private final String wire;
 

@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -101,6 +103,26 @@ class EventControllerTest {
                 {"events":[{"name":"engine_failed","sid":"cccccccc","isolated":false}]}
                 """;
         mvc.perform(post("/events").contentType(MediaType.APPLICATION_JSON).content(최소))
+                .andExpect(status().isNoContent());
+    }
+
+    /**
+     * 프런트가 보내는 이름을 <b>손으로 다시 적어</b> 둔다.
+     *
+     * <p>{@code EventName.values()} 를 돌면 enum 이 자기를 보는 꼴이라 오타를 못 잡는다.
+     * 여기 적힌 글자가 프런트의 {@code EventName} 타입과 같아야 하고, 한 글자라도 다르면
+     * 서버가 400 으로 거절한다. 그런데 <b>프런트는 {@code sendBeacon} 이라 답을 안 읽어서
+     * 조용히 버려진다</b> - 숫자가 비어 있는 것을 나중에 보고서야 안다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "app_open", "engine_ready", "engine_failed",
+        "game_start", "first_move", "game_end", "review_open"
+    })
+    @DisplayName("프런트가 보내는 이름은 모두 받는다")
+    void 프런트가_보내는_이름을_모두_받는다(String 이름) throws Exception {
+        String 본문 = "{\"events\":[{\"name\":\"" + 이름 + "\",\"sid\":\"dddddddd\"}]}";
+        mvc.perform(post("/events").contentType(MediaType.APPLICATION_JSON).content(본문))
                 .andExpect(status().isNoContent());
     }
 }
