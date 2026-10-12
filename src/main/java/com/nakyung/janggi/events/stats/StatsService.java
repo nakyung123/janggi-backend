@@ -56,6 +56,34 @@ public class StatsService {
                         .map(r -> new Stats.Day(r.getDay(), r.getSessions(), r.getEvents()))
                         .toList();
 
-        return new Stats(env, 부터, 지금, 저장소.방문수(env, 부터), 깔때기, 날짜별);
+        List<Stats.Device> 기기별 =
+                저장소.기기별(env, 부터).stream()
+                        .map(
+                                r ->
+                                        new Stats.Device(
+                                                r.getKind(),
+                                                r.getLabel(),
+                                                r.getSessions(),
+                                                r.getEngine(),
+                                                r.getMoved(),
+                                                r.getP50()))
+                        .toList();
+
+        List<Stats.Referrer> 들어온곳 =
+                저장소.들어온곳(env, 부터).stream()
+                        .map(r -> new Stats.Referrer(r.getLabel(), r.getSessions()))
+                        .toList();
+
+        // 기록이 하나도 없으면 질의가 null 을 줄 수 있다. 그때도 모양은 같아야 한다 -
+        // 보는 쪽에서 "칸이 아예 없는 것" 과 "0건" 을 가르게 하지 않는다.
+        StatsRepository.EngineRow 엔진행 = 저장소.엔진시간(env, 부터);
+        Stats.Engine 엔진 =
+                엔진행 == null
+                        ? new Stats.Engine(0, null, null, null)
+                        : new Stats.Engine(
+                                엔진행.getN(), 엔진행.getP50(), 엔진행.getP90(), 엔진행.getWorst());
+
+        return new Stats(
+                env, 부터, 지금, 저장소.방문수(env, 부터), 깔때기, 날짜별, 기기별, 들어온곳, 엔진);
     }
 }
