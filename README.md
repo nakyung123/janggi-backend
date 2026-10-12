@@ -1,17 +1,73 @@
-# janggi-events
+<a id="readme-top"></a>
 
-[![CI 와 배포](https://github.com/nakyung123/janggi-events/actions/workflows/ci.yml/badge.svg)](https://github.com/nakyung123/janggi-events/actions/workflows/ci.yml)
+<!-- 배지 -->
+[![CI][ci-shield]][ci-url]
+[![License][license-shield]][license-url]
 
-**[장기 AI](https://janggi-ai.vercel.app) 가 보내는 사용 기록을 받아 쌓는 서버.**
+<br />
+<div align="center">
 
-실제로 돌고 있고, 실제 사용자의 기록을 받는다. 쓰는 사람이 몇 명인지, 엔진이 안 뜨는
-기기가 있는지, 들어와서 무엇을 하다 떠나는지를 알기 위해 만들었다.
+<h1 align="center">janggi-events</h1>
 
-```
-Java 21 · Spring Boot 4.1.1 · Gradle · Docker · Cloud Run (도쿄) · GitHub Actions
-```
+  <p align="center">
+    <a href="https://janggi-ai.vercel.app">장기 AI</a> 가 보내는 사용 기록을 받아 쌓는 서버
+    <br />
+    <br />
+    <a href="#재-본-숫자">재 본 숫자</a>
+    &middot;
+    <a href="https://github.com/nakyung123/janggi-board">화면 쪽 저장소</a>
+    &middot;
+    <a href="https://github.com/nakyung123/janggi-events/issues/new">문제 알리기</a>
+  </p>
+</div>
 
-## 어디에 서 있나
+<!-- 목차 -->
+<details>
+  <summary>목차</summary>
+  <ol>
+    <li>
+      <a href="#프로젝트-소개">프로젝트 소개</a>
+      <ul>
+        <li><a href="#만든-도구">만든 도구</a></li>
+        <li><a href="#어디에-서-있나">어디에 서 있나</a></li>
+      </ul>
+    </li>
+    <li><a href="#주소">주소</a></li>
+    <li>
+      <a href="#고른-것들">고른 것들</a>
+      <ul>
+        <li><a href="#요금을-네-겹으로-막는다">요금을 네 겹으로 막는다</a></li>
+        <li><a href="#같은-것이-두-번-와도-한-줄">같은 것이 두 번 와도 한 줄</a></li>
+        <li><a href="#열쇠-파일-없이-배포한다">열쇠 파일 없이 배포한다</a></li>
+      </ul>
+    </li>
+    <li><a href="#재-본-숫자">재 본 숫자</a></li>
+    <li><a href="#시작하기">시작하기</a></li>
+    <li><a href="#로드맵">로드맵</a></li>
+    <li><a href="#라이선스">라이선스</a></li>
+    <li><a href="#연락처">연락처</a></li>
+  </ol>
+</details>
+
+<!-- 프로젝트 소개 -->
+## 프로젝트 소개
+
+쓰는 사람이 몇 명인지, 엔진이 안 뜨는 기기가 있는지, 들어와서 무엇을 하다 떠나는지를
+알려고 만들었습니다. **실제로 돌고 있고 실제 사용자의 기록을 받습니다.**
+
+브라우저가 `navigator.sendBeacon` 으로 던지고 잊기 때문에 **이 서버는 사람이 지나가는
+길 위에 없습니다.** 여기가 터져 있어도 장기는 둬집니다. 아래 판단 거의 전부가 이
+한 줄에서 나왔습니다.
+
+### 만든 도구
+
+* [![Java][Java-shield]][Java-url]
+* [![Spring Boot][Spring-shield]][Spring-url]
+* [![Postgres][Postgres-shield]][Postgres-url]
+* [![Docker][Docker-shield]][Docker-url]
+* [![Cloud Run][CloudRun-shield]][CloudRun-url]
+
+### 어디에 서 있나
 
 ```
 사람의 폰
@@ -21,20 +77,23 @@ Vercel (janggi-board)   화면을 준다      <- 없으면 사이트가 없다
    │  /api/ 로 오는 것만 넘긴다
    ▼
 Cloud Run (여기)        기록을 받는다    <- 없어도 장기는 둬진다
+   │
+   ▼
+Neon Postgres           쌓는다
 ```
 
-**이 서버는 사람이 지나가는 길 위에 없다.** 브라우저가 `navigator.sendBeacon` 으로
-던지고 잊기 때문에, 여기가 터져 있어도 쓰는 사람은 모른다.
+두 저장소는 코드로 안 붙고 **주소 한 줄로만** 붙습니다.
 
-이 한 줄이 아래 판단 거의 전부의 근거다. 콜드 스타트 7초를 감당할 수 있는 것도,
-몰아칠 때 기록을 버리기로 한 것도 여기서 나왔다. **그래서 이 전제가 깨지는 기능(사람이
-답을 기다리는 것)은 여기 붙이지 않는다.**
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 
-두 저장소는 코드로 안 붙고 **주소 한 줄로만** 붙는다 - Vercel 의 되돌림(rewrite)이
-`/api/*` 를 이 서버로 보낸다. 그래서 브라우저가 보는 출처는 하나고, 프런트의
-`connect-src 'self'` 울타리를 열지 않아도 된다.
+<!-- 주소 -->
+## 주소
 
-## 받는 것
+| 주소 | 하는 일 |
+| --- | --- |
+| `POST /events` | 사용 기록을 받습니다. 묶음으로 최대 50건 |
+| `GET /stats` | 센 것을 보여 줍니다. **토큰이 없으면 404** |
+| `GET /actuator/health` | 살아 있는지. Cloud Run 이 봅니다 |
 
 ```http
 POST /events
@@ -47,235 +106,187 @@ Content-Type: application/json
 204 No Content
 ```
 
-| 주소 | 하는 일 |
-| --- | --- |
-| `POST /events` | 사용 기록을 받는다. 묶음으로 최대 50건 |
-| `GET /actuator/health` | 살아 있는지. Cloud Run 이 본다 |
+**돌려줄 것이 없어서 204 입니다.** 브라우저는 던지고 답을 읽지 않습니다.
 
-**돌려줄 것이 없어서 204 다.** 브라우저는 `sendBeacon` 으로 던지고 **답을 읽지도
-않는다.** 200 에 빈 몸통을 실으면 쓸데없는 바이트만 오간다.
+**모르는 이벤트 이름은 묶음 전체를 거절합니다**(400). 일부만 받으면 보낸 쪽은 성공한
+줄 알고 받은 쪽에 구멍이 생기는데, 나중에 숫자가 안 맞을 때 원인을 찾을 수 없습니다.
 
-**모르는 이벤트 이름은 묶음 전체를 거절한다**(400). 일부만 받으면 보낸 쪽은 성공한
-줄 알고 받은 쪽에 구멍이 생기는데, 그 구멍은 나중에 숫자가 안 맞을 때 원인을 찾을 수
-없게 만든다. 받아들이는 이름은 `EventName` 한 곳에만 적혀 있다.
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 
-대가로 **순서가 생긴다** - 프런트에 새 이벤트를 더할 때는 서버를 먼저 배포해야 한다.
-거꾸로 하면 그 사이에 온 것이 버려진다.
+<!-- 고른 것들 -->
+## 고른 것들
 
-## 생각한 것들
+무엇을 만들었나보다 **왜 그것을 골랐고 무엇을 포기했나**를 적습니다.
 
-### 공개 주소를 요금에서 지키기
+| 고른 것 | 왜 | 포기한 것 |
+| --- | --- | --- |
+| 표 하나 (세션 표 없음) | 읽고 쓰는 사이가 없어 경쟁이 안 생깁니다 | 기기 정보가 줄마다 되풀이됩니다 (하루 5KB) |
+| 로그 먼저, DB 나중 | DB 가 죽어도 기록이 남습니다 | 두 군데 적습니다 |
+| 넣기만 네이티브 SQL | JPA 에 `ON CONFLICT` 가 없습니다 | 도구를 섞어 씁니다 |
+| 뜰 때 DB 에 연결 안 함 | DB 가 죽어도 서버는 뜹니다 | 첫 요청이 조금 느립니다 |
+| 잠들게 둠 (`min-instances=0`) | 무료 한도가 24시간을 못 버팁니다 | 콜드 스타트 3~8초 |
+| 싱가포르 (도쿄 없음) | Neon 에 도쿄가 없습니다 | 70ms 더 멉니다 |
 
-누구나 부를 수 있는 주소다. 무료 한도를 넘기면 내 돈이 나간다. 그래서 **네 겹**으로
-막는데, 겹마다 막는 것이 다르다.
+### 요금을 네 겹으로 막는다
+
+누구나 부를 수 있는 주소입니다. **겹마다 못 막는 것이 다릅니다.**
 
 | 겹 | 무엇을 막나 | 못 막는 것 |
 | --- | --- | --- |
-| `RateLimitFilter` (1분 120건) | 한 서버에 몰아치는 것 | 서버가 2대면 한도도 2배 |
-| `RequestSizeFilter` (64KiB) | 큰 본문 | 작은 요청을 많이 |
+| 건수 제한 (1분 120건) | 몰아치는 것 | 서버가 2대면 한도도 2배 |
+| 크기 제한 (64KiB) | 큰 본문 | 작은 요청을 많이 |
 | `--max-instances=2` | 서버가 늘어나는 것 | 2대가 계속 도는 것 |
-| 구글 지출 한도 | 결국 돈 | **늦게 닫힌다** |
+| 구글 지출 한도 | 결국 돈 | **늦게 닫힙니다** |
 
-안쪽이 바깥쪽을 보고 정해져 있다 - 건수 한도는 무료 한도(한 달 180,000 vCPU-초)에서
-거꾸로 계산한 숫자고, 지출 한도가 늦게 닫히기 때문에 `--max-instances` 가 같이 있다.
+건수를 **IP 별이 아니라 전체로** 셉니다. 진짜 주소가 실리는 `X-Forwarded-For` 는
+Cloud Run 을 직접 때리는 쪽에서 **마음대로 쓸 수 있습니다** - 꾸밀 수 있는 값으로 세는
+것은 제한이 아닙니다.
 
-**건수를 IP 별이 아니라 전체로 센다.** Vercel 되돌림을 거치면 요청이 전부 Vercel
-주소에서 온 것으로 보여 IP 별로 세는 것이 의미가 없고, 진짜 주소가 실리는
-`X-Forwarded-For` 는 **Cloud Run 을 직접 때리는 쪽에서 마음대로 쓸 수 있다.** 꾸밀 수
-있는 값으로 세는 것은 제한이 아니다.
+### 같은 것이 두 번 와도 한 줄
 
-대가는 **한 명이 몰아치면 그 사이 정상 사용자의 기록도 버려진다.** 사람이 기다리는
-길 위에 없어서 잃는 것이 기록뿐이라 요금이 새는 것보다 낫다고 봤다.
+`sendBeacon` 은 at-least-once 라 **망이 끊기면 묶음을 통째로 다시 보냅니다.**
 
-**문지기는 `/events` 에만 세운다.** 모든 주소에 붙이면 상태 확인까지 한도에 걸려서,
-몰아치는 동안 Cloud Run 이 "죽었다" 고 보고 다시 띄운다. **그 재시작이 또 콜드 스타트
-요금이다.** 막으려던 것을 막다가 비용을 만드는 모양이 된다.
+```sql
+CREATE UNIQUE INDEX event_once_idx ON event (sid, name, sent_at);
+INSERT ... ON CONFLICT (sid, name, sent_at) DO NOTHING;
+```
 
-### 스프링이 막아 주지 않는 것
+**같은 이벤트 6,001건을 동시에 퍼부어 표에 1줄이 남는 것을 확인했습니다.**
 
-**JSON 본문의 크기는 스프링이 막지 않는다.** 설정 목록을 직접 확인했다 -
-`server.max-http-post-size` 와 `server.tomcat.max-http-post-size` 는 둘 다 폐기됐고,
-살아 있는 `server.tomcat.max-http-form-post-size` 는 이름대로 **폼 데이터에만** 걸린다.
+묶음 하나는 **전부 들어가거나 전부 안 들어갑니다**(한 트랜잭션). 반쯤 들어가면 나중에
+숫자를 믿을 수 없습니다.
 
-그래서 문지기가 없으면 누가 100MB JSON 을 보내도 톰캣이 다 받아서 잭슨이 다 파싱한다.
-공개 주소에서는 그게 곧 요금이다.
+### 열쇠 파일 없이 배포한다
 
-### DB 없이 검색되게 하기
+서비스 계정 JSON 키를 깃허브에 넣지 않습니다. **그 파일은 만료가 없어서 한 번 새면
+영구히 쓸 수 있고, 이 저장소는 공개입니다.** 대신 깃허브가 서명한 증서를 GCP 가 확인하는
+방식(Workload Identity Federation)을 씁니다 - 토큰 수명 15분, 저장할 비밀 없음.
 
-DB 를 붙이기 전에도 **조건으로 찾을 수 있어야** 쓸모가 있다. "사파리로 들어온 것만",
-"엔진이 못 뜬 것만" 을 못 세면 기록이 있어도 모르는 것과 같다.
-
-Cloud Logging 은 stdout 의 한 줄이 **전체가 JSON 일 때만** 그것을 뜯어 칸으로 만든다.
-앞에 시각이나 레벨이 붙으면 줄을 통째로 글자 덩어리로 넣어서 조건 검색이 안 된다.
-그래서 두 갈래로 내보낸다.
-
-| 무엇 | 어떻게 | 왜 |
-| --- | --- | --- |
-| 이벤트 기록 | `janggi.events.record` 로거 → **메시지만** | 칸으로 뜯혀야 세고 걸러낼 수 있다 |
-| 스프링 자신의 로그 | `GcpStructuredLogFormatter` | 예외 스택이 **한 건**으로 묶인다 |
-
-부트가 기본으로 주는 형식은 `ecs`·`gelf`·`logstash` 뿐이고 **구글 것은 없다.**
-`logging.structured.format.console=gcp` 라고 적었다가 **시작조차 못 하고 죽었다.**
-그래서 포맷터를 직접 만들어 클래스 이름으로 지정한다.
-
-**적히는 줄은 언제나 한 줄이어야 한다.** 보낸 값 안의 줄바꿈이 줄을 쪼개면 가짜 JSON
-줄을 끼워 넣어 **기록을 위조할 수 있다.** 지금은 잭슨이 막아 주지만 그건 도구의
-성질이지 우리가 고른 것이 아니라서, 테스트(`EventLogLineTest`)로 못 박았다.
-
-### 시험한 그 이미지를 올린다
-
-CI 와 배포를 **한 일감에 두었다.** 보통 나누는 쪽이 깔끔하지만 그러면 330MB 이미지를
-일감 사이로 주고받아야 하고, 다시 지으면 **시험한 바이트와 나간 바이트가 달라진다.**
-같은 소스라도 그렇다.
-
-그래서 CI 가 만들어 띄워 보고 찔러 본 그 이미지에 태그를 붙여 올리고, **digest 로**
-배포한다. 태그는 나중에 다른 이미지를 가리킬 수 있어서 리비전이 무엇으로 돌고 있는지
-알 수 없게 된다.
-
-**배포 단계를 맨 뒤에 둔 것이 안전장치다.** 마지막 검사가 깨진 글자 검사인데, 배포를
-그 앞에 두면 깨진 소스가 그대로 올라간다. **순서가 곧 규칙이다.**
-
-### 열쇠 파일 없이 배포하기
-
-서비스 계정 JSON 키를 GitHub 시크릿에 넣지 않는다. **그 파일은 만료가 없어서 한 번
-새면 영구히 쓸 수 있고, 이 저장소는 공개다.**
-
-대신 GitHub 이 서명한 증서를 GCP 가 확인하는 방식(Workload Identity Federation)을
-쓴다. 토큰 수명이 15분이고 **저장할 비밀이 없다.** 설정 전체에서 가장 중요한 줄은
-이것이다.
+설정 전체에서 가장 중요한 줄은 이것입니다. 빠지면 **아무 저장소나 들어옵니다.**
 
 ```
 --attribute-condition="assertion.repository == '<내-저장소>'"
 ```
 
-이게 빠지면 **아무 GitHub 저장소나 내 계정으로 들어온다.**
+배포 계정은 `run.admin` 이 아니라 **`run.developer`** 입니다. "누가 부를 수 있나" 는
+못 바꿉니다.
 
-배포 계정의 권한은 `roles/run.admin` 이 아니라 **`roles/run.developer`** 다.
-`setIamPolicy` 가 빠져 있어서 "누가 이 서버를 부를 수 있나" 는 못 바꾼다. 그래서
-워크플로에 `--allow-unauthenticated` 가 없다 - 있으면 배포가 실패한다.
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 
-준비 명령과 되돌리는 법은 [`deploy/DEPLOY.md`](deploy/DEPLOY.md) 에 있다.
+<!-- 재 본 숫자 -->
+## 재 본 숫자
 
-### 뜨는 시간을 고르기
+감으로 적지 않고 전부 재 보았습니다.
 
-`--min-instances=0` 이라 아무도 안 쓰면 서버가 0대다. 1로 두면 24시간 내내 돈이
-나간다. 대가는 **콜드 스타트 3.0 ~ 7.5초**(깨어난 뒤는 0.11초)다.
-
-그래서 JVM 설정을 **오래 돌 때의 속도가 아니라 뜨는 시간**에 맞췄다.
-
-```
--XX:MaxRAMPercentage=75.0    컨테이너에 준 메모리를 보고 힙을 잡는다
-                             없으면 호스트 전체를 보고 잡아 한도를 넘어 죽는다
--XX:TieredStopAtLevel=1      기계어 최적화를 1단계에서 멈춘다
-                             요청이 드물어 거의 매번 새로 뜨므로 이쪽이 맞다
-```
-
-**콜드 스타트를 더 줄이는 길(CDS 미리 만들기, 층 나눠 담기)은 일부러 두었다.** 한 달
-콜드 스타트를 다 합쳐도 무료 한도의 1.3% 라서, 복잡해지는 값이 얻는 것보다 크다.
-근거는 다시 **사람이 기다리는 길 위에 없다**는 것이고, 그 전제가 바뀌면 다시 본다.
-
-### 죽을 때 기록을 잃지 않기
-
-Cloud Run 은 서버를 줄일 때 SIGTERM 을 보내고 **10초 뒤에 SIGKILL 을 보낸다. 그건 못
-막는다.** 그래서 종료 대기를 8초로 잡았다(처음에 20초로 적었는데, 그건 플랫폼이
-지켜 줄 수 없는 약속이었다). 나머지 2초는 스프링이 뒷정리할 몫이다.
-
-그리고 `ENTRYPOINT` 를 **대괄호 형태**로 쓴다. 문자열로 쓰면 `sh` 가 1번 프로세스가
-되어 **SIGTERM 을 자바에게 넘기지 않고**, 그러면 위 설정이 아무 일도 못 한다.
-오류는 안 난다 - 기록만 조용히 사라진다.
-
-### 개인정보를 받지 않기
-
-- **IP 를 적지 않는다.** 쿠키를 쓰지 않는다.
-- 방문 번호(`sid`)는 **쪽을 열 때마다 새로 만든 8글자**다. 사람을 이어 붙이지 않는다.
-- 그래서 셀 수 있는 것은 **"몇 명" 이 아니라 "몇 번"** 이다. 그 한계를 알고 쓴다.
-- **받은 시각이 기준이다.** 보낸 쪽 시각(`at`)은 사용자 시계가 틀릴 수 있어 참고용이다.
-- 값이 없을 수 있는 칸은 일부러 막지 않았다. **없는 것과 잘못된 것은 다르다** -
-  없는 것을 그대로 받아 적어야 "이 기기는 메모리를 알 수 없었다" 를 나중에 셀 수 있다.
-
-## 기계가 막아 주는 것
-
-**적어 둔 규칙은 안 지켜진다.** 아래는 전부 문서에 적어 두고도 밟았던 것이고, 이제
-CI 가 막는다.
-
-| CI 가 보는 것 | 안 보면 생기는 일 |
+| 무엇 | 값 |
 | --- | --- |
-| 테스트가 **몇 개** 돌았는지 | `UP-TO-DATE` 로 건너뛰고도 초록불이 된다 |
-| 컨테이너를 띄워 직접 불러 보기 | jar 는 되는데 **이미지가 시작도 못 한** 일이 있었다 |
-| 로그 줄이 **전부** JSON 인지 | 한 줄만 아니어도 그 줄은 영영 검색되지 않는다 |
-| 깨진 글자 | 오류가 안 나서 아무도 모른다 |
+| 처리량 (로컬) | 초당 **500건**까지 p95 6.7ms |
+| 밀어붙이면 | 초당 710건에서 느려집니다. **깨지지 않고 느려집니다** |
+| 동시에 같은 것 | 6,001건 → 표에 **1줄** |
+| 실서버 지연 | p50 **43.6ms** (한국 → 도쿄) |
+| 콜드 스타트 | Cloud Run 3.0~7.5초 + Neon 0.5초 |
+| 테스트 | **44개** (7개는 진짜 Postgres 로) |
 
-**검사를 만들면 일부러 망가뜨려 본다.** 늘 통과하는 검사는 없느니만 못하다. JSON 아닌
-줄·깨진 글자·이벤트 0건을 각각 넣어 **빨간불이 뜨는 것을 확인하고** 올렸다.
+**건수 제한이 성능 때문이 아니라는 것이 여기서 보입니다** - 앱은 초당 500건을 받는데
+한도는 초당 2건입니다. 250배 차이고, 그 한도는 **요금** 때문입니다.
 
-테스트는 **29개**다. 수가 아니라 **무엇을 지키는지**로 골랐다 - 한도에 막힌 뒤에도
-상태 확인이 200 인지, 창이 지나면 다시 받는지(테스트에서는 창 길이를 짧게 넣는다),
-프런트가 보내는 이름 일곱을 전부 받는지.
+부하 시험 스크립트는 [`test/load/events.js`](test/load/events.js) 에 있습니다.
 
-마지막 것은 **`EventName.values()` 를 돌지 않고 글자를 손으로 다시 적어** 둔다. enum
-을 돌면 enum 이 자기를 보는 꼴이라 오타를 못 잡는데, 오타가 나면 서버가 400 으로
-거절하고 **프런트는 `sendBeacon` 이라 답을 안 읽어서 조용히 버려진다.** 숫자가 비어
-있는 것을 나중에 보고서야 안다.
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 
-## 돌려보기
+<!-- 시작하기 -->
+## 시작하기
+
+### 준비물
+
+* JDK 21
+* Docker
+
+### 돌려보기
+
+DB 를 띄우고, 접속 정보를 주어 서버를 띄웁니다. **없으면 4초 만에 죽습니다.**
 
 ```bash
+docker run -d --name db -p 5432:5432 \
+  -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=dev postgres:18-alpine
+
 ./gradlew clean build
-java -jar build/libs/janggi-events-*.jar
+
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/dev \
+SPRING_DATASOURCE_USERNAME=postgres \
+SPRING_DATASOURCE_PASSWORD=dev \
+  java -jar build/libs/janggi-events-*.jar
 ```
 
-한글이 든 요청은 **파일로 만들어 보낸다.** 셸을 거치면 글자가 변한다.
+한글이 든 요청은 **파일로 만들어 보냅니다.** 셸을 거치면 글자가 변합니다.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' localhost:8080/actuator/health
 printf '%s' '{"events":[{"name":"app_open","sid":"local001"}]}' > 본문.json
-curl -s -X POST localhost:8080/events \
-  -H 'Content-Type: application/json' --data-binary @본문.json
+curl -X POST localhost:8080/events \
+  -H 'Content-Type: application/json' --data-binary @본문.json   # 204
 ```
 
-컨테이너로도 띄워 본다. **jar 로 되는 것과 이미지로 되는 것은 다르다.**
+### 통계 보기
 
 ```bash
-docker build -t janggi-events:dev .
-docker run -d --name t -p 8080:9090 -e PORT=9090 janggi-events:dev
-docker logs t                              # 줄마다 전체가 JSON 인지
-docker stop t && docker logs t | tail -2   # Graceful shutdown complete 가 있는지
-docker rm -f t
+JANGGI_STATS_TOKEN=아무거나 java -jar build/libs/janggi-events-*.jar
+curl -H 'X-Stats-Token: 아무거나' 'localhost:8080/stats?days=7'
 ```
 
-로그는 **눈으로 보지 말고 줄마다 파싱해 본다.** 한 줄이라도 JSON 이 아니면 그 줄은
-검색되지 않는다. 저장소에서 일하는 방식과 밟은 함정은 [`CLAUDE.md`](CLAUDE.md) 에
-있다.
+토큰을 안 걸면 **아무도 못 들어옵니다**(404). 깜빡했을 때 열리는 것이 아니라 닫히는
+쪽이어야 합니다.
 
-## 참고: Spring Boot 4 는 자료와 다르다
+저장소에서 일하는 방식과 밟았던 함정은 [`CLAUDE.md`](CLAUDE.md), 배포는
+[`deploy/DEPLOY.md`](deploy/DEPLOY.md) 에 있습니다.
 
-찾아보는 글은 거의 전부 Boot 3 기준이다. 그대로 복사하면 안 된다.
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 
-| 자료에 나오는 것 | Boot 4 에서는 |
-| --- | --- |
-| `spring-boot-starter-web` | **`spring-boot-starter-webmvc`** |
-| `spring-boot-starter-test` 하나 | 스타터마다 `-test` (`...-webmvc-test`) |
-| `com.fasterxml.jackson.databind.ObjectMapper` | **`tools.jackson.databind.ObjectMapper`** (Jackson 3) |
-| `JsonProcessingException` | **`tools.jackson.core.JacksonException`** |
-| `@Valid List<T>` | **`List<@Valid T>`** (바깥에 붙이면 HV000271 폐기 경고) |
-| `HttpStatus.PAYLOAD_TOO_LARGE` | **`CONTENT_TOO_LARGE`** (RFC 9110 에서 이름이 바뀜) |
+<!-- 로드맵 -->
+## 로드맵
 
-Boot 3.5 는 2026-06-30 에, 4.0 은 2026-12-31 에 지원이 끝난다. 그래서 4.1 이다.
+- [x] 기록 받기 (`POST /events`)
+- [x] Cloud Run 배포 · 열쇠 없는 자동 배포
+- [x] Postgres 에 쌓기 · 중복 막기 · 원자성
+- [x] 센 것 보여 주기 (`GET /stats`)
+- [x] 부하 시험
+- [ ] `/stats` 에 기기 · 들어온 곳 · 엔진 뜨는 시간
+- [ ] 슬라이딩 창 (지금은 고정 창이라 경계에서 2배까지 샙니다)
 
-## 아직 없는 것
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 
-- **DB.** 지금은 Cloud Logging 에만 쌓인다(보관 30일). DB 가 생기면 규칙 둘이 들어온다 -
-  한 요청이 반쯤 적히지 않게(**원자성**), 같은 이벤트가 두 번 와도 꼬이지 않게
-  (**멱등성**). `sendBeacon` 은 at-least-once 라 **재전송이 실제로 일어난다.**
-- **`GET /stats`.** 숫자를 모아 보는 자리. DB 가 먼저다.
-
-**DB 를 1단계에 같이 붙이지 않은 까닭** - 먼저 브라우저에서 서버까지 관이 뚫리는지를
-확인하는 것이 목적이었고, DB 를 같이 붙이면 안 될 때 **범인이 둘이 된다.**
-
+<!-- 라이선스 -->
 ## 라이선스
 
-**MIT.** 전문은 [`LICENSE`](LICENSE) 에 있다. 가져다 쓰고 고쳐도 되고, 이름과 라이선스
-글만 남기면 된다.
+**MIT.** 전문은 [`LICENSE`](LICENSE) 에 있습니다. 가져다 쓰고 고쳐도 되고, 이름과
+라이선스 글만 남기면 됩니다.
 
-화면 쪽 저장소(`janggi-board`)는 **GPL v3** 다. 거기는 장기 엔진이 GPL 이라 따라간
-것이고, 이 서버는 엔진을 쓰지 않아 고를 수 있었다.
+화면 쪽 저장소는 **GPL v3** 입니다. 거기는 장기 엔진이 GPL 이라 따라간 것이고, 이
+서버는 엔진을 쓰지 않아 고를 수 있었습니다.
+
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
+
+<!-- 연락처 -->
+## 연락처
+
+nakyung123 - [github.com/nakyung123](https://github.com/nakyung123)
+
+프로젝트: [janggi-events](https://github.com/nakyung123/janggi-events) ·
+[janggi-board](https://github.com/nakyung123/janggi-board)
+
+<p align="right">(<a href="#readme-top">맨 위로</a>)</p>
+
+<!-- 배지와 주소 -->
+[ci-shield]: https://github.com/nakyung123/janggi-events/actions/workflows/ci.yml/badge.svg
+[ci-url]: https://github.com/nakyung123/janggi-events/actions/workflows/ci.yml
+[license-shield]: https://img.shields.io/badge/license-MIT-blue?style=flat
+[license-url]: https://github.com/nakyung123/janggi-events/blob/main/LICENSE
+[Java-shield]: https://img.shields.io/badge/Java%2021-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white
+[Java-url]: https://openjdk.org/
+[Spring-shield]: https://img.shields.io/badge/Spring%20Boot%204-6DB33F?style=for-the-badge&logo=springboot&logoColor=white
+[Spring-url]: https://spring.io/projects/spring-boot
+[Postgres-shield]: https://img.shields.io/badge/PostgreSQL%2018-4169E1?style=for-the-badge&logo=postgresql&logoColor=white
+[Postgres-url]: https://www.postgresql.org/
+[Docker-shield]: https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white
+[Docker-url]: https://www.docker.com/
+[CloudRun-shield]: https://img.shields.io/badge/Cloud%20Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white
+[CloudRun-url]: https://cloud.google.com/run
