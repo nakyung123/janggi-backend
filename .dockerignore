@@ -10,3 +10,4 @@ build
 .env.*
 .idea
 *.iml
+test
