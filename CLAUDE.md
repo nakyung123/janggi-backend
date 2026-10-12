@@ -29,16 +29,22 @@ Cloud Run (여기)        기록을 받는다    <- 없어도 장기는 둬진�
 ```
 janggi-events/
 ├── Dockerfile  .dockerignore            이미지
+├── .env                                 접속 비밀. .gitignore 에 있다
 ├── src/main/resources/
 │   ├── application.properties           어디서나
 │   ├── application-cloud.properties     Cloud Run 에서만 (프로파일 cloud)
-│   └── logback-spring.xml               로그를 어떤 모양으로 내보내나
+│   ├── logback-spring.xml               로그를 어떤 모양으로 내보내나
+│   └── db/migration/                    Flyway. 스키마의 유일한 기준
+├── src/test/resources/
+│   └── application-test.properties      테스트에만 얹는 설정
 └── src/main/java/com/nakyung/janggi/events/
     ├── JanggiEventsApplication.java
     ├── event/                    기능 하나
     │   ├── EventController.java  받는다 (얇게)
     │   ├── EventName.java        받아들이는 이름 목록. 여기가 유일한 기준
     │   ├── EventService.java     거르고 적는다
+    │   ├── EventEntity.java      표 한 줄. 넣기는 안 하고 맞춰 보기와 읽기를 한다
+    │   ├── EventRepository.java  넣기는 네이티브 SQL (ON CONFLICT)
     │   └── dto/                  주고받는 모양
     └── common/
         ├── exception/            400 으로 바꾸는 자리
@@ -72,6 +78,15 @@ Data 의 `JpaRepository` 자체가 이미 그 경계다 - 저장소를 갈아탈
 | `logging.structured.format.console=gcp` | **그런 값은 없다.** `ecs`·`gelf`·`logstash` 뿐 |
 | `@Valid List<T>` | **`List<@Valid T>`** (바깥에 붙이면 HV000271 폐기 경고) |
 | `HttpStatus.PAYLOAD_TOO_LARGE` | **`CONTENT_TOO_LARGE`** (RFC 9110 에서 이름이 바뀜) |
+| `org.flywaydb:flyway-core` 하나 | **`spring-boot-starter-flyway`** (자동설정이 모듈로 떨어졌다) |
+| `org.testcontainers:postgresql` | **`org.testcontainers:testcontainers-postgresql`** (2.x) |
+| `org.testcontainers:junit-jupiter` | **`...:testcontainers-junit-jupiter`** (2.x) |
+| `new PostgreSQLContainer<>(...)` | **`new PostgreSQLContainer(...)`** (2.x 에서 제네릭이 사라짐) |
+
+**`flyway-core` 가 제일 고약하다.** 라이브러리는 클래스패스에 있는데 스프링이 안 불러서
+**오류 없이 마이그레이션만 조용히 안 돈다.** 증상은 엉뚱하게 `missing table` 로 나온다.
+의존성을 넣었는데 아무 일도 안 일어나면 **조건 보고서에 그 자동설정이 있는지** 본다 -
+없으면 라이브러리가 아니라 **부트 모듈**이 빠진 것이다.
 
 **모르는 클래스는 짐작하지 말고 jar 를 열어 본다.**
 
@@ -80,6 +95,46 @@ unzip -l <jar> | grep ClassName
 ```
 
 Boot 3.5 는 2026-06-30 에, 4.0 은 2026-12-31 에 지원이 끝난다. 그래서 4.1 이다.
+
+## 데이터베이스
+
+**Neon Postgres(싱가포르).** 도쿄가 없어서 제일 가까운 데로 갔다. 접속 정보는 코드에
+없고 `SPRING_DATASOURCE_URL` · `_USERNAME` · `_PASSWORD` 환경 변수로 들어온다 -
+로컬은 `.env`, Cloud Run 은 서비스 환경 변수와 **Secret Manager** 다(비밀번호만).
+
+- **스키마를 만드는 것은 Flyway 뿐이다.** 하이버네이트는 `ddl-auto=validate` 로 맞춰
+  보기만 한다. 엔티티와 표가 한 글자라도 어긋나면 **시작조차 못 한다** - 넣다가 터지면
+  그 요청의 기록은 이미 버려진 뒤라서, 일찍 큰 소리로 터지는 쪽이 낫다.
+- **넣기는 JPA 로 하지 않는다.** `ON CONFLICT DO NOTHING` 이 필요한데 JPA 에 없다.
+  "찾아보고 없으면 넣기" 는 **찾은 뒤 넣기 전 사이에** 깨진다. 읽기는 JPA 를 쓴다.
+- **중복의 기준은 `(sid, name, sent_at)`** 이고 `V1__event.sql` 의 유일 인덱스와 짝이다.
+  한쪽만 바꾸면 `ON CONFLICT` 가 통째로 실패한다(Postgres 가 맞는 인덱스를 요구한다).
+- **`.env` 의 값에는 따옴표를 붙인다.** URL 에 `&` 가 있어서 따옴표가 없으면 셸이 그
+  자리를 "뒤에서 실행" 으로 읽고 **대입이 조용히 끊긴다.** 실제로 그래서 Cloud Run 에
+  빈 주소를 한 번 올렸다. 오류는 안 났다.
+- **쉴 때 연결을 놓는다**(`minimum-idle=0`). Neon 무료는 5분 쉬면 잠드는 것이 조건이라
+  (한 달 컴퓨트 100시간), 안 쓰는 연결을 붙들고 있으면 쓰지도 않으면서 시간이 닳는다.
+- **풀러(`-pooler` 호스트)를 쓰지 않는다.** PgBouncer 가 transaction mode 라 세션 잠금이
+  안 걸리는데, **Flyway 가 마이그레이션에 쓰는 것이 그 잠금**이다. 연결이 네 개뿐이라
+  (서버 2대 × 2) 풀러가 필요하지도 않다.
+
+### 테스트는 둘로 갈린다
+
+| | 무엇으로 | 무엇을 보나 |
+| --- | --- | --- |
+| 대부분 | 메모리 H2 (Flyway 끔) | 컨텍스트가 뜨는지. **DB 를 안 건드린다** |
+| `EventRepositoryTest` | **진짜 Postgres 18** (Testcontainers) | 마이그레이션 · `ON CONFLICT` · `JSONB` |
+
+**H2 로는 위 셋 중 하나도 확인되지 않는다.** 가짜로 통과시키면 "테스트는 초록인데
+실서버에서 깨지는" 종류가 된다.
+
+- **테스트 설정을 `src/test/resources/application.properties` 에 두지 않는다.** 이름이
+  같아 본체 설정을 **통째로 가린다.** 그렇게 뒀다가 문지기 숫자까지 사라져
+  `limitPerMinute 는 1 이상이어야 합니다: 0` 으로 터졌다. 프로파일
+  (`application-test.properties`)은 가리지 않고 얹힌다. 켜는 것은 `build.gradle` 이 한다.
+- **`@EnabledIfDockerAvailable` 을 지우지 않는다.** `Dockerfile` 안에서 빌드할 때는
+  **도커 안에 도커가 없다.** 이게 없으면 이미지 빌드가 통째로 실패한다. CI 러너에는
+  도커가 있어서, **이미지가 만들어지기 전에 한 번은 반드시 돈다.**
 
 ## 윈도우에서 밟는 것
 
@@ -222,9 +277,17 @@ docker run -d --name t -p 8080:9090 -e PORT=9090 janggi-events:dev
 curl -s -o /dev/null -w '%{http_code}
 ' localhost:8080/actuator/health   # 200
 docker logs t                      # 줄마다 전체가 JSON 인지
-docker stop t && docker logs t | tail -2   # Graceful shutdown complete 가 있는지
+docker stop t && docker logs t | grep -c 'Graceful shutdown complete'   # 1 이어야 한다
 docker rm -f t
 ```
+
+**`tail -2` 로 보지 않는다.** DB 가 붙은 뒤로 종료 순서가 바뀌어서, 맨 끝 두 줄은
+`Graceful shutdown complete` 가 아니라 JPA·Hikari 정리 줄이다. 끝에 있다고 믿고 보면
+**멀쩡한데 실패로 읽는다.** 글자로 찾는다.
+
+**DB 없이는 뜨지 않는다.** 위 `docker run` 에 접속 정보를 같이 줘야 한다 - 없으면
+`Failed to determine a suitable driver class` 로 4초 만에 죽는다. 빈 Postgres 하나를
+같이 띄우면 된다(CI 의 `DB 를 띄운다` 단계가 그대로 쓸 수 있는 본보기다).
 
 로그는 **눈으로 보지 말고 줄마다 파싱해 본다.** 한 줄이라도 JSON 이 아니면 그 줄은
 Cloud Logging 에서 검색되지 않는다.
@@ -238,14 +301,16 @@ Get-NetTCPConnection -LocalPort 8080 -State Listen |
 
 ## 아직 없는 것
 
-DB · `/stats` · 프런트 연결. 순서는 **배포로 관을 먼저 뚫고** 그다음 DB 다. 로그만으로도
-Cloud Logging 이 30일 보관하므로 그 사이 데이터가 버려지지 않는다.
+`/stats`. 그리고 **표는 있는데 아직 아무것도 안 들어간다** - `EventService` 가 여전히
+로그에만 적는다. 관을 먼저 뚫고 수도를 나중에 트는 순서라, 1단계에서 DB 를 같이 붙이지
+않은 것과 같은 까닭이다(안 될 때 범인이 둘이 되지 않게).
 
 **굳이 안 한 것** - 콜드 스타트를 더 줄이는 길(CDS 미리 만들기, 층 나눠 담기)은 두었다.
 지금 2.4초이고 한 달 콜드 스타트를 다 합쳐도 무료 한도의 1.3% 라서, 복잡해지는 값이
 얻는 것보다 크다. **사람이 기다리는 길 위에 없다는 것이 이 판단의 근거다** - 그 전제가
 바뀌면 다시 본다.
 
-**DB 가 생기면 규칙 둘이 여기 들어온다** - 한 요청이 반쯤 적히지 않게(원자성), 같은
-이벤트가 두 번 와도 꼬이지 않게(멱등성). `sendBeacon` 은 at-least-once 라 재전송이
-실제로 일어난다.
+**멱등성은 표가 맡고 있다** - `(sid, name, sent_at)` 유일 인덱스와 `ON CONFLICT DO
+NOTHING` 이다. `sendBeacon` 은 at-least-once 라 재전송이 실제로 일어난다. **원자성은
+아직 쓸 자리가 없다** - 넣는 코드가 붙는 1-5 다음 단계에서 묶음 하나를 한 트랜잭션에
+넣는다.

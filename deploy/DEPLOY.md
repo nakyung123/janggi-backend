@@ -77,10 +77,58 @@ gcloud logging read 'resource.labels.service_name="janggi-events" AND textPayloa
 - **Cloud Run 이 자기 요청 기록에 `remoteIp`(부른 사람의 IP)를 적는다.** 우리 앱은
   안 적지만 플랫폼은 적는다. 기본 보관 30일.
 
+## 데이터베이스 (Neon Postgres, 싱가포르)
+
+```
+프로젝트    janggi-events          misty-meadow-28322077
+리전        aws-ap-southeast-1     도쿄가 없어서 제일 가까운 데로 갔다
+컴퓨트      0.25 CU 고정           기본은 0.25~2 였다. 2로 커지면 무료 시간이 8배로 닳는다
+잠들기      5분 (끌 수 없다)        깨는 데 약 0.5초 - 직접 쟀다
+```
+
+접속 정보는 서비스에 이렇게 박혀 있다.
+
+| 이름 | 어디서 오나 |
+| --- | --- |
+| `SPRING_DATASOURCE_URL` | 평범한 환경 변수 (비밀 아님) |
+| `SPRING_DATASOURCE_USERNAME` | 평범한 환경 변수 (비밀 아님) |
+| `SPRING_DATASOURCE_PASSWORD` | **Secret Manager** 의 `janggi-db-password` 참조 |
+
+**비밀번호만 Secret Manager 인 까닭** - 평범한 환경 변수로 두면
+`gcloud run services describe` 와 콘솔 화면에 **값이 그대로 찍힌다.** 참조로 두면 이름만
+보인다. 무료 한도가 활성 비밀 6개와 월 1만 회 조회라 우리는 공짜다(비밀 1개, 콜드
+스타트마다 한 번씩 월 600회쯤).
+
+한 번만 한 준비는 이렇다. **값은 파이프로만 흘린다 - 명령줄에 적지 않는다.**
+
+```bash
+P=janggi-events
+RUNTIME=982664928901-compute@developer.gserviceaccount.com
+
+gcloud services enable secretmanager.googleapis.com --project=$P
+
+printf '%s' "$비밀번호" | gcloud secrets create janggi-db-password \
+  --data-file=- --replication-policy=automatic --project=$P
+
+gcloud secrets add-iam-policy-binding janggi-db-password \
+  --member="serviceAccount:$RUNTIME" --role=roles/secretmanager.secretAccessor --project=$P
+
+# 환경 변수는 파일로 준다. URL 에 & 와 = 가 있어서 명령줄로 주면 셸이 끊는다.
+gcloud run services update janggi-events --region=asia-northeast1 --project=$P \
+  --env-vars-file=env.yaml \
+  --update-secrets="SPRING_DATASOURCE_PASSWORD=janggi-db-password:latest"
+```
+
+**워크플로의 `gcloud run deploy` 는 이 값들을 건드리지 않는다.** `--set-env-vars` 나
+`--clear-env-vars` 를 안 주면 서비스에 있던 것이 그대로 남는다. 거꾸로 말하면 **누가
+나중에 워크플로에 `--set-env-vars` 를 하나 더하는 순간 DB 설정이 통째로 날아간다** -
+`--allow-unauthenticated` 와 같은 성질이다.
+
 ## 이미지 보관
 
-무료 보관이 **0.5GB** 뿐이다. 이미지 한 판이 약 91MB 고, 다음 판부터는 베이스가
-공유돼 20MB 안팎씩 는다.
+무료 보관이 **0.5GB** 뿐이다. **1-5 에서 JPA·하이버네이트·Flyway·드라이버가 들어오면서
+이미지가 331MB → 392MB 로 늘었다**(압축 전). 다음 판부터는 베이스가 공유돼 늘어나는 것은
+앱 층뿐이다.
 
 ```bash
 gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
@@ -172,5 +220,5 @@ gcloud run services update-traffic janggi-events \
 
 ## 아직 안 한 것
 
-- 지출 한도가 무료 사용량을 세는지 실제 값으로 확인 (2026-10-11 아침)
 - 내 권한을 배포용 계정 수준으로 좁히기 (자동 배포가 돈 다음)
+- `EventService` 가 실제로 DB 에 적기 (표만 만들어 둔 상태다)

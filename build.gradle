@@ -21,14 +21,49 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	// 스키마는 Flyway 파일이 들고 있다. 하이버네이트가 표를 만들게 두지 않는다 -
+	// 그러면 스키마가 코드에서 유추되는 것이라 **어제 무엇이 바뀌었는지 아무 데도 없다.**
+	//
+	// **`org.flywaydb:flyway-core` 가 아니다.** Boot 3 자료는 전부 그것만 넣으라고 하는데,
+	// Boot 4 는 자동설정을 기술별 모듈로 쪼개서 그것만 넣으면 **라이브러리는 있고 스프링이
+	// 안 부른다.** 오류도 없이 마이그레이션이 그냥 안 돈다. 실제로 그렇게 두고
+	// "missing table [event]" 를 한참 봤다.
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	// Flyway 10 부터 DB 별 지원이 따로 떨어졌다. 이게 없으면 Postgres 를 모른다
+	// (flyway-core 가 기본으로 아는 것은 H2·SQLite 뿐이다).
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'org.postgresql:postgresql'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+
+	// DB 를 안 건드리는 테스트가 컨텍스트만 띄우려고 쓴다. 진짜 Postgres 가 필요한
+	// 테스트는 아래 Testcontainers 로 따로 간다.
+	testRuntimeOnly 'com.h2database:h2'
+
+	// **아티팩트 이름이 Testcontainers 2.x 에서 바뀌었다.** 인터넷 예제는 거의 다 1.x 라
+	// `org.testcontainers:postgresql` 로 나오는데 그 이름은 이제 없다. 짐작하지 말고
+	// BOM(testcontainers-bom 2.0.5)에서 확인한 이름이다.
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+
+	// 모든 테스트에 `test` 프로파일을 켠다. 테스트용 설정을 클래스 하나하나에 적지 않고
+	// src/test/resources/application-test.properties 한 곳에 모으기 위해서다.
+	//
+	// **테스트 쪽에 application.properties 를 두면 안 된다** - 이름이 같아 본체 설정을
+	// 통째로 가린다. 프로파일은 가리지 않고 얹힌다. 까닭은 그 파일 주석에 있다.
+	systemProperty 'spring.profiles.active', 'test'
 }
 
 // 그래들의 기본 jar 를 만들지 않는다. 부트 jar 와 둘이 나와서 Dockerfile 의 COPY 가

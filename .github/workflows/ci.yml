@@ -60,9 +60,36 @@ jobs:
       - name: 이미지 만들기
         run: docker build -t janggi-events:ci .
 
+      # **DB 를 같이 띄운다.** 1-5 부터 앱이 DB 없이는 못 뜬다 - Flyway 가 시작할 때
+      # 마이그레이션을 돌리고, 하이버네이트가 엔티티와 표를 맞춰 본다. 없으면
+      # "Failed to determine a suitable driver class" 로 4초 만에 죽는다.
+      #
+      # 실서버(Neon)를 쓰지 않는다. CI 가 실제 데이터에 손대면 안 되고, 거기 비밀번호를
+      # 넣으려면 공개 저장소에 시크릿을 하나 더 둬야 한다. 빈 Postgres 로 충분하다 -
+      # 여기서 보려는 것은 **마이그레이션이 진짜 도는가**지 데이터가 아니다.
+      - name: DB 를 띄운다
+        run: |
+          docker network create ci-net
+          docker run -d --name ci-db --network ci-net \
+            -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=ci postgres:18-alpine
+
+          for i in $(seq 1 30); do
+            if docker exec ci-db pg_isready -q -U postgres -d ci 2>/dev/null; then
+              echo "DB 준비됨 (${i}초)"; break
+            fi
+            if [ -z "$(docker ps -q -f name=ci-db)" ]; then
+              echo "::error::DB 컨테이너가 죽었습니다."; docker logs ci-db; exit 1
+            fi
+            sleep 1
+          done
+
       - name: 띄워서 직접 불러 본다
         run: |
-          docker run -d --name ci -p 8080:9090 -e PORT=9090 janggi-events:ci
+          docker run -d --name ci --network ci-net -p 8080:9090 -e PORT=9090 \
+            -e SPRING_DATASOURCE_URL=jdbc:postgresql://ci-db:5432/ci \
+            -e SPRING_DATASOURCE_USERNAME=postgres \
+            -e SPRING_DATASOURCE_PASSWORD=ci \
+            janggi-events:ci
 
           for i in $(seq 1 30); do
             if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 \
@@ -90,6 +117,13 @@ jobs:
                  localhost:8080/events -H 'Content-Type: application/json' --data-binary @bad.json)"
           기대 "상태 확인"   200 "$(curl -s -o /dev/null -w '%{http_code}' \
                  localhost:8080/actuator/health)"
+
+          # **마이그레이션이 진짜 돌았는지 DB 에 대고 확인한다.** 앱이 떴다는 것만으로는
+          # 모자라다 - 표가 없어도 뜰 수 있게 설정을 잘못 건드리면 그때 조용히 지나간다.
+          기대 "event 표"    0 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
+                 -c 'select count(*) from event')"
+          기대 "적용된 판"   1 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
+                 -c 'select count(*) from flyway_schema_history where success')"
 
       # 여기가 핵심이다. 우리 앱이 내보낸 줄은 **전부가 JSON** 이어야 Cloud Logging 이
       # 칸으로 뜯는다. 한 줄이라도 아니면 그 줄은 영영 검색되지 않는다.
@@ -120,7 +154,9 @@ jobs:
 
       - name: 치우기
         if: always()
-        run: docker rm -f ci || true
+        run: |
+          docker rm -f ci ci-db || true
+          docker network rm ci-net || true
 
       # 2026-10-08 에 자동 PR 이 한글 세 글자를 날린 일이 있었다. 영어만 있는 파일에서는
       # 안 생겨서 도구들이 못 보고 지나간다. 세 바이트를 printf 로 만들어 그대로 찾는다.
