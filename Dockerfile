@@ -41,6 +41,14 @@ USER app
 # 나가고, 로컬에서 jar 를 직접 돌릴 때는 사람이 읽는 글로 남는다.
 ENV SPRING_PROFILES_ACTIVE=cloud
 
+# 어느 커밋으로 지은 이미지인지. CI 가 넣어 주고, 손으로 지으면 unknown 으로 남는다 -
+# **모르는 것을 아는 척하지 않는다.** 뜰 때 이 값을 로그에 한 줄 찍는다.
+#
+# 맨 아래 가까이 둔 까닭 - ARG 가 바뀌면 그 아래 층이 다시 만들어진다. 위에 두면
+# 커밋이 바뀔 때마다 jar 복사까지 다시 한다.
+ARG GIT_SHA=unknown
+ENV JANGGI_COMMIT=$GIT_SHA
+
 # 실제 포트는 Cloud Run 이 PORT 로 알려 준다. 이 줄은 사람이 읽기 위한 표시다.
 EXPOSE 8080
 

@@ -221,7 +221,7 @@ CI 가 막는다.
 
 ```bash
 ./gradlew clean build
-java -jar build/libs/janggi-events-0.0.1-SNAPSHOT.jar
+java -jar build/libs/janggi-events-*.jar
 ```
 
 한글이 든 요청은 **파일로 만들어 보낸다.** 셸을 거치면 글자가 변한다.

@@ -5,7 +5,10 @@ plugins {
 }
 
 group = 'com.nakyung'
-version = '0.0.1-SNAPSHOT'
+
+// 프런트(`src/updates/log.ts`)와 같은 자리에서 센다. 생성기가 준 0.0.1-SNAPSHOT 을
+// 그대로 두면 **무엇이 돌고 있는지 아무 데도 적혀 있지 않다.**
+version = '0.1.0'
 
 java {
 	toolchain {
@@ -64,6 +67,13 @@ tasks.named('test') {
 	// **테스트 쪽에 application.properties 를 두면 안 된다** - 이름이 같아 본체 설정을
 	// 통째로 가린다. 프로파일은 가리지 않고 얹힌다. 까닭은 그 파일 주석에 있다.
 	systemProperty 'spring.profiles.active', 'test'
+}
+
+// 판 번호와 지은 때를 jar 안에 적어 둔다(`META-INF/build-info.properties`).
+// 이게 있어야 뜰 때 "무엇이 돌고 있는지" 를 찍을 수 있다. 밖에서 알아내려면
+// Cloud Run 리비전 → 이미지 digest → Artifact Registry 태그로 세 번 건너뛰어야 한다.
+springBoot {
+	buildInfo()
 }
 
 // 그래들의 기본 jar 를 만들지 않는다. 부트 jar 와 둘이 나와서 Dockerfile 의 COPY 가

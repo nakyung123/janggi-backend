@@ -271,7 +271,7 @@ JSON 아닌 줄·깨진 글자·이벤트 0건을 각각 넣어서 빨간불이 
 그리고 **띄워서 직접 불러 본다.** 테스트가 통과한 것과 진짜로 도는 것은 다르다.
 
 ```bash
-java -jar build/libs/janggi-events-0.0.1-SNAPSHOT.jar
+java -jar build/libs/janggi-events-*.jar
 curl -X POST localhost:8080/events -H "Content-Type: application/json" --data-binary @본문.json
 ```
 
