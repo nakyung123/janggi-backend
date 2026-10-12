@@ -42,7 +42,9 @@ janggi-events/
     ├── event/                    기능 하나
     │   ├── EventController.java  받는다 (얇게)
     │   ├── EventName.java        받아들이는 이름 목록. 여기가 유일한 기준
-    │   ├── EventService.java     거르고 적는다
+    │   ├── EventService.java     거르고 · 로그에 적고 · 창고에 넘긴다
+    │   ├── EventStore.java       쌓는 자리. 여기가 위아래를 가르는 금이다
+    │   ├── JpaEventStore.java    그 구현. 트랜잭션이 여기 걸린다
     │   ├── EventEntity.java      표 한 줄. 넣기는 안 하고 맞춰 보기와 읽기를 한다
     │   ├── EventRepository.java  넣기는 네이티브 SQL (ON CONFLICT)
     │   └── dto/                  주고받는 모양
@@ -102,6 +104,14 @@ Boot 3.5 는 2026-06-30 에, 4.0 은 2026-12-31 에 지원이 끝난다. 그래�
 없고 `SPRING_DATASOURCE_URL` · `_USERNAME` · `_PASSWORD` 환경 변수로 들어온다 -
 로컬은 `.env`, Cloud Run 은 서비스 환경 변수와 **Secret Manager** 다(비밀번호만).
 
+- **두 군데 적고, 로그가 먼저다.** 로그는 늘 되고(돌아가는 부품이 없다) DB 는 안 될 수
+  있다. 순서가 뒤집히면 DB 가 죽은 동안의 기록이 **어디에도 없다.** DB 가 실패해도
+  요청은 204 로 끝낸다 - 브라우저는 `sendBeacon` 이라 답을 읽지 않아서 500 을 줘 봐야
+  얻는 것이 없다. 대신 경고 로그를 남긴다.
+- **묶음 하나가 한 트랜잭션이다.** 반쯤 들어가면 나중에 숫자를 못 믿는다. 트랜잭션은
+  `JpaEventStore` 에 걸려 있고, **`EventService` 가 다른 빈이라서** 프록시를 거쳐
+  실제로 돈다. 같은 클래스 안에서 부르면 프록시를 안 거쳐 **오류 없이 트랜잭션만
+  조용히 없다** - `EventStore` 를 떼어낸 까닭 하나가 그것이다.
 - **스키마를 만드는 것은 Flyway 뿐이다.** 하이버네이트는 `ddl-auto=validate` 로 맞춰
   보기만 한다. 엔티티와 표가 한 글자라도 어긋나면 **시작조차 못 한다** - 넣다가 터지면
   그 요청의 기록은 이미 버려진 뒤라서, 일찍 큰 소리로 터지는 쪽이 낫다.
@@ -301,9 +311,8 @@ Get-NetTCPConnection -LocalPort 8080 -State Listen |
 
 ## 아직 없는 것
 
-`/stats`. 그리고 **표는 있는데 아직 아무것도 안 들어간다** - `EventService` 가 여전히
-로그에만 적는다. 관을 먼저 뚫고 수도를 나중에 트는 순서라, 1단계에서 DB 를 같이 붙이지
-않은 것과 같은 까닭이다(안 될 때 범인이 둘이 되지 않게).
+`/stats`. 그리고 **2026-10-11 까지의 기록 82줄이 아직 DB 에 없다** - 로그에서 떠 둔
+`C:\nakyung\janggi-logs\events-2026-10-11.jsonl` 에 있고, 넣는 것은 따로 한다.
 
 **굳이 안 한 것** - 콜드 스타트를 더 줄이는 길(CDS 미리 만들기, 층 나눠 담기)은 두었다.
 지금 2.4초이고 한 달 콜드 스타트를 다 합쳐도 무료 한도의 1.3% 라서, 복잡해지는 값이
@@ -312,5 +321,5 @@ Get-NetTCPConnection -LocalPort 8080 -State Listen |
 
 **멱등성은 표가 맡고 있다** - `(sid, name, sent_at)` 유일 인덱스와 `ON CONFLICT DO
 NOTHING` 이다. `sendBeacon` 은 at-least-once 라 재전송이 실제로 일어난다. **원자성은
-아직 쓸 자리가 없다** - 넣는 코드가 붙는 1-5 다음 단계에서 묶음 하나를 한 트랜잭션에
-넣는다.
+`JpaEventStore` 의 트랜잭션이 맡는다** - 묶음 하나가 전부 들어가거나 전부 안 들어간다.
+둘 다 진짜 Postgres 로 테스트가 박혀 있고, **일부러 망가뜨려 잡히는 것까지 봤다.**

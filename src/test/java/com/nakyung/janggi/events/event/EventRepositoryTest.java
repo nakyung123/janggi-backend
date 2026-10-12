@@ -2,7 +2,10 @@ package com.nakyung.janggi.events.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.nakyung.janggi.events.event.dto.EventRequest;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +15,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.EnabledIfDockerAvailable;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -52,6 +56,7 @@ class EventRepositoryTest {
     static PostgreSQLContainer db = new PostgreSQLContainer("postgres:18-alpine");
 
     @Autowired EventRepository 저장소;
+    @Autowired EventService 서비스;
 
     private int 넣기(String sid, String 이름, Long 보낸시각, String data) {
         return 저장소.넣기(
@@ -95,6 +100,65 @@ class EventRepositoryTest {
 
         assertThat(저장소.findAll().stream().filter(e -> "cccccccc".equals(e.getSid())))
                 .hasSize(3);
+    }
+
+    @Test
+    @DisplayName("서비스를 거쳐도 끝까지 들어간다 - 묶음째로")
+    void 서비스를_거쳐_들어간다() {
+        // 프런트가 실제로 보내는 모양 그대로. 컨트롤러 아래 전부를 한 번에 지난다.
+        서비스.record(
+                List.of(
+                        새이벤트("app_open", "eeeeeeee", 1000L),
+                        새이벤트("engine_ready", "eeeeeeee", 2000L)));
+
+        var 들어간것 =
+                저장소.findAll().stream().filter(e -> "eeeeeeee".equals(e.getSid())).toList();
+        assertThat(들어간것).hasSize(2);
+        assertThat(들어간것).extracting(EventEntity::getName)
+                .containsExactlyInAnyOrder("app_open", "engine_ready");
+        // data 가 jsonb 칸을 거쳐 돌아오는지. 여기가 깨지면 CAST 가 잘못된 것이다.
+        assertThat(들어간것).allSatisfy(e -> assertThat(e.getData()).contains("4g"));
+    }
+
+    @Test
+    @DisplayName("서비스를 거친 것도 두 번째는 버린다")
+    void 서비스를_거쳐도_중복은_버린다() {
+        var 묶음 = List.of(새이벤트("app_open", "ffffffff", 500L));
+        서비스.record(묶음);
+        // 망이 끊겨 브라우저가 같은 묶음을 다시 보낸 상황.
+        서비스.record(묶음);
+
+        assertThat(저장소.findAll().stream().filter(e -> "ffffffff".equals(e.getSid())))
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("묶음 중 하나라도 못 넣으면 앞엣것도 되돌아간다")
+    // **이 테스트만 테스트 트랜잭션 밖에서 돈다.** 안에서 돌리면 창고의 실패가 바깥
+    // 트랜잭션까지 '되돌릴 것' 으로 표시해서, 그 뒤 확인 질의가 아예 못 돈다. 되돌아간
+    // 것을 보려면 되돌림이 진짜로 끝난 뒤에 봐야 한다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 묶음은_전부_아니면_전무() {
+        // browser 칸이 VARCHAR(64) 다. 긴 값을 넣어 **두 번째 건에서** 터뜨린다.
+        // (여기서는 DTO 검증을 지나지 않으므로 길이 제한에 안 걸리고 DB 까지 간다.)
+        String 긴것 = "가".repeat(100);
+        서비스.record(
+                List.of(
+                        새이벤트("app_open", "gggggggg", 1L),
+                        new EventRequest(
+                                "engine_ready", "gggggggg", "0.1.0", 긴것, "아이폰", null,
+                                true, 6, 16, "390x844", 2L, "prod", null)));
+        // 서비스가 삼키므로 예외는 안 올라온다. 로그에 경고만 남는다.
+
+        assertThat(저장소.findAll().stream().filter(e -> "gggggggg".equals(e.getSid())))
+                .as("첫 건이 남아 있으면 묶음이 반쯤 들어간 것이다")
+                .isEmpty();
+    }
+
+    private static EventRequest 새이벤트(String 이름, String sid, Long 보낸시각) {
+        return new EventRequest(
+                이름, sid, "0.1.0", "사파리 17", "아이폰", null, true, 6, 16, "390x844",
+                보낸시각, "prod", Map.of("conn", "4g"));
     }
 
     @Test

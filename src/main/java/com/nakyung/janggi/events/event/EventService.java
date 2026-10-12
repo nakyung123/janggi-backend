@@ -15,9 +15,20 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * 받은 이벤트를 걸러서 적는다.
  *
- * <p><b>지금은 로그에만 적는다.</b> DB 는 1-5 에서 붙인다. 먼저 브라우저에서 서버까지
- * 관이 뚫리는지를 확인하는 것이 1단계의 목적이고, DB 를 같이 붙이면 안 될 때 범인이
- * 둘이 된다.
+ * <p><b>두 군데 적는다. 로그가 먼저다.</b>
+ *
+ * <ol>
+ *   <li>로그 - 늘 된다. 돌아가는 부품이 없다.
+ *   <li>DB - 여기가 실패해도 <b>요청은 204 로 끝낸다.</b>
+ * </ol>
+ *
+ * <p>순서가 뒤집히면 안 된다. 로그가 먼저라야 DB 가 죽은 동안의 기록이 남고, 나중에
+ * 그것을 보고 채워 넣을 수 있다. DB 를 먼저 쓰고 실패하면 <b>그 건은 어디에도 없다.</b>
+ *
+ * <p><b>DB 실패에 500 을 주지 않는 까닭</b> - 브라우저는 {@code sendBeacon} 으로 던지고
+ * <b>답을 읽지 않는다.</b> 500 을 줘 봐야 다시 보내지도 않고, 사용자에게 보이지도 않는다.
+ * 얻는 것 없이 "서비스가 고장났다" 는 신호만 남는다. 대신 경고 로그를 남긴다 -
+ * 조용히 넘어가는 것과 요청을 깨뜨리는 것은 다르다.
  *
  * <p><b>로그를 JSON 한 줄로 찍는 까닭</b> - Cloud Logging 은 stdout 에 나온 줄이
  * <b>전체가 JSON 일 때만</b> 그것을 뜯어 칸으로 만들어 준다. 그래야 DB 가 없어도
@@ -41,9 +52,11 @@ public class EventService {
     private static final Logger eventLog = LoggerFactory.getLogger("janggi.events.record");
 
     private final ObjectMapper mapper;
+    private final EventStore 창고;
 
-    public EventService(ObjectMapper mapper) {
+    public EventService(ObjectMapper mapper, EventStore 창고) {
         this.mapper = mapper;
+        this.창고 = 창고;
     }
 
     /**
@@ -63,6 +76,28 @@ public class EventService {
         Instant receivedAt = Instant.now();
         for (EventRequest e : events) {
             write(e, receivedAt);
+        }
+
+        넣기(events, receivedAt);
+    }
+
+    /**
+     * 창고에 넘긴다. <b>실패를 삼키되 조용히는 아니다.</b>
+     *
+     * <p>기록은 바로 위에서 이미 로그에 적혔다. 쌓는 데 실패했다고 요청을 깨뜨리면
+     * 얻는 것 없이 "서비스가 고장났다" 는 신호만 남는다 - 브라우저는 답을 읽지도 않는다.
+     * 대신 경고를 남긴다. 이 줄이 쌓이면 <b>"DB 에만 구멍이 난 구간"</b> 을 집어내서
+     * 로그에서 채워 넣을 수 있다.
+     */
+    private void 넣기(List<EventRequest> events, Instant receivedAt) {
+        try {
+            창고.넣기(events, receivedAt);
+        } catch (RuntimeException ex) {
+            log.warn(
+                    "쌓지 못했습니다. 로그에는 남아 있습니다. {}건 sid={}",
+                    events.size(),
+                    events.get(0).sid(),
+                    ex);
         }
     }
 
