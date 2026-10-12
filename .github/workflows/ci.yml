@@ -138,6 +138,12 @@ jobs:
           기대 "적용된 판"   1 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
                  -c 'select count(*) from flyway_schema_history where success')"
 
+          # **토큰을 안 걸고 띄웠으므로 /stats 는 닫혀 있어야 한다.** 설정을 깜빡했을 때
+          # 열리는 것이 아니라 닫히는 쪽인지를 여기서 매번 본다. 404 다 - 403 을 주면
+          # "여기 뭔가 있다" 를 알려주는 셈이라서.
+          기대 "통계는 닫힘"  404 "$(curl -s -o /dev/null -w '%{http_code}' \
+                 localhost:8080/stats)"
+
       # 여기가 핵심이다. 우리 앱이 내보낸 줄은 **전부가 JSON** 이어야 Cloud Logging 이
       # 칸으로 뜯는다. 한 줄이라도 아니면 그 줄은 영영 검색되지 않는다.
       - name: 로그가 칸으로 뜯기는 모양인지
