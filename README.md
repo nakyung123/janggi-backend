@@ -248,8 +248,8 @@ curl -H 'X-Stats-Token: 아무거나' 'localhost:8080/stats?days=7'
 - [x] Postgres 에 쌓기 · 중복 막기 · 원자성
 - [x] 센 것 보여 주기 (`GET /stats`)
 - [x] 부하 시험
+- [x] 미끄러지는 창 (고정 창은 경계에서 2배까지 샜습니다 - 60초에 230건 → 120건)
 - [ ] `/stats` 에 기기 · 들어온 곳 · 엔진 뜨는 시간
-- [ ] 슬라이딩 창 (지금은 고정 창이라 경계에서 2배까지 샙니다)
 
 <p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 
