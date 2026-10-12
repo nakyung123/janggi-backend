@@ -118,10 +118,18 @@ jobs:
           기대 "상태 확인"   200 "$(curl -s -o /dev/null -w '%{http_code}' \
                  localhost:8080/actuator/health)"
 
-          # **마이그레이션이 진짜 돌았는지 DB 에 대고 확인한다.** 앱이 떴다는 것만으로는
-          # 모자라다 - 표가 없어도 뜰 수 있게 설정을 잘못 건드리면 그때 조용히 지나간다.
-          기대 "event 표"    0 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
+          # **DB 에 직접 대고 확인한다.** 204 를 받았다는 것은 "받았다" 까지고,
+          # 쌓였는지는 다른 이야기다 - 쌓기에 실패해도 204 를 주도록 만들어 뒀다.
+          #
+          # 위에서 보낸 것이 딱 한 건이어야 한다. 400 으로 거절한 것까지 들어가면 2가 된다.
+          기대 "쌓인 건수"   1 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
                  -c 'select count(*) from event')"
+          기대 "쌓인 방문"   ci01 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
+                 -c 'select sid from event')"
+          # 2026-10-08 에 자동 도구가 한글 세 글자를 날린 일이 있었다. 이제는 HTTP · 잭슨 ·
+          # JDBC · Postgres 를 지나는 길이 생겼으니, 그 길 끝에서도 글자가 성한지 본다.
+          기대 "한글이 성한지" "사파리 17" "$(docker exec ci-db psql -qtAX -U postgres -d ci \
+                 -c 'select browser from event')"
           기대 "적용된 판"   1 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
                  -c 'select count(*) from flyway_schema_history where success')"
 
