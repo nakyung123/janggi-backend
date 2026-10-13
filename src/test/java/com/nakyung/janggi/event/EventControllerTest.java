@@ -22,7 +22,15 @@ import org.springframework.test.web.servlet.MockMvc;
  * 거기 있어서, 가짜로 바꾸면 <b>정작 확인하고 싶은 것을 안 거치게 된다.</b>
  */
 @WebMvcTest(EventController.class)
-@Import({EventService.class, EventControllerTest.창고없이.class})
+// **SecurityConfig 를 같이 불러온다.** @WebMvcTest 는 조각이라 이것을 안 불러오고, 그러면
+// 스프링 보안 기본값이 걸려 모든 POST 가 CSRF 로 403 이 된다. 끼워 넣지 않고 필터를 끄는
+// 길도 있지만(addFilters = false) 그러면 **진짜 규칙을 안 거치는 테스트**가 된다 - 누가
+// 나중에 /events 를 CSRF 에서 빼는 줄을 지우면 이 테스트가 알려 줘야 한다.
+@Import({
+    EventService.class,
+    EventControllerTest.창고없이.class,
+    com.nakyung.janggi.common.security.SecurityConfig.class
+})
 class EventControllerTest {
 
     /**

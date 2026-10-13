@@ -26,6 +26,14 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 
+	// 로그인. **`spring-boot-starter-oauth2-client` 가 아니다.** Boot 4 가 이름을 바꿨는데
+	// 옛 이름도 4.1.1 에 아직 있어서 **빌드가 그냥 통과한다** - 경고만 나고 조용히 사라질
+	// 것을 쓰게 된다. Flyway 때와 같은 함정이고, 그때는 아예 안 돌아서 알아챘지만 이쪽은
+	// 돌아간다. 공식 마이그레이션 문서에서 확인한 이름이다.
+	//
+	// `spring-boot-starter-security` 를 따로 넣지 않는다 - 이것이 끌어온다.
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
+
 	// 스키마는 Flyway 파일이 들고 있다. 하이버네이트가 표를 만들게 두지 않는다 -
 	// 그러면 스키마가 코드에서 유추되는 것이라 **어제 무엇이 바뀌었는지 아무 데도 없다.**
 	//
@@ -43,6 +51,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client-test'
 
 	// DB 를 안 건드리는 테스트가 컨텍스트만 띄우려고 쓴다. 진짜 Postgres 가 필요한
 	// 테스트는 아래 Testcontainers 로 따로 간다.
