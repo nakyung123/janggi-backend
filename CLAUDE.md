@@ -41,8 +41,8 @@ janggi-events/
 ├── src/test/resources/
 │   └── application-test.properties      테스트에만 얹는 설정
 ├── test/load/events.js                  k6 부하 시험 (그래들과 무관)
-└── src/main/java/com/nakyung/janggi/events/
-    ├── JanggiEventsApplication.java
+└── src/main/java/com/nakyung/janggi/
+    ├── JanggiApplication.java
     ├── event/                    기능 하나
     │   ├── EventController.java  받는다 (얇게)
     │   ├── EventName.java        받아들이는 이름 목록. 여기가 유일한 기준
@@ -410,7 +410,7 @@ JSON 아닌 줄·깨진 글자·이벤트 0건을 각각 넣어서 빨간불이 
 그리고 **띄워서 직접 불러 본다.** 테스트가 통과한 것과 진짜로 도는 것은 다르다.
 
 ```bash
-java -jar build/libs/janggi-events-*.jar
+java -jar build/libs/janggi-server-*.jar
 curl -X POST localhost:8080/events -H "Content-Type: application/json" --data-binary @본문.json
 ```
 
@@ -421,8 +421,8 @@ curl -X POST localhost:8080/events -H "Content-Type: application/json" --data-bi
 다르다 - `gcp` 형식이 없다는 것도, jar 는 멀쩡한데 컨테이너가 시작조차 못 하면서 드러났다.
 
 ```bash
-docker build -t janggi-events:dev .
-docker run -d --name t -p 8080:9090 -e PORT=9090 janggi-events:dev
+docker build -t janggi-server:dev .
+docker run -d --name t -p 8080:9090 -e PORT=9090 janggi-server:dev
 curl -s -o /dev/null -w '%{http_code}
 ' localhost:8080/actuator/health   # 200
 docker logs t                      # 줄마다 전체가 JSON 인지
