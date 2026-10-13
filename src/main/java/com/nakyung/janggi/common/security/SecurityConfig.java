@@ -1,7 +1,9 @@
 package com.nakyung.janggi.common.security;
 
+import com.nakyung.janggi.auth.AuthTokenFilter;
 import com.nakyung.janggi.auth.CookieAuthorizationRequestRepository;
 import com.nakyung.janggi.auth.LoginSuccessHandler;
+import com.nakyung.janggi.auth.TokenIssuer;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.savedrequest.NullRequestCache;
@@ -73,7 +76,8 @@ public class SecurityConfig {
     SecurityFilterChain 울타리(
             HttpSecurity http,
             CookieAuthorizationRequestRepository state저장소,
-            LoginSuccessHandler 로그인성공) throws Exception {
+            LoginSuccessHandler 로그인성공,
+            TokenIssuer 토큰) throws Exception {
         return http.authorizeHttpRequests(
                          길 ->
                                 길.requestMatchers(
@@ -84,6 +88,10 @@ public class SecurityConfig {
                                                 // 아래 denyAll 과 읽는 사람이 부딪힌다.
                                                 "/oauth2/authorization/**",
                                                 "/login/oauth2/code/**",
+                                                // "로그인했나" 를 묻는 자리를 로그인해야
+                                                // 열리게 두면 답을 받을 수가 없다.
+                                                // 쿠키가 없으면 거절이 아니라 false 다.
+                                                "/me",
                                                 "/actuator/health",
                                                 "/actuator/health/**",
                                                 // 스프링이 오류를 여기로 한 번 더 보낸다.
@@ -100,6 +108,22 @@ public class SecurityConfig {
                          세션 -> 세션.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(c -> c.securityContextRepository(new NullSecurityContextRepository()))
                 .requestCache(c -> c.requestCache(new NullRequestCache()))
+                // **쿠키를 읽는 필터를 인가 검사 바로 앞에 세운다.** 뒤에 세우면
+                // authenticated() 가 아직 아무도 없는 상태에서 판단한다.
+                .addFilterBefore(new AuthTokenFilter(토큰), AuthorizationFilter.class)
+                .logout(
+                        나가기 ->
+                                나가기.logoutUrl("/logout")
+                                        // **기본 동작을 쓰지 않는다.** 기본은 /login?logout
+                                        // 으로 보내는데 그런 쪽이 없고, 우리 쿠키는
+                                        // 스프링이 모르므로 지워 주지도 않는다.
+                                        // deleteCookies() 도 못 쓴다 - 성질(SameSite 등)이
+                                        // 같지 않으면 브라우저가 다른 쿠키로 본다.
+                                        .logoutSuccessHandler(
+                                                (요청, 답, 인증) -> {
+                                                    토큰.지우기(답);
+                                                    답.setStatus(204);
+                                                }))
                 .oauth2Login(
                         로그인 ->
                                 로그인.authorizationEndpoint(

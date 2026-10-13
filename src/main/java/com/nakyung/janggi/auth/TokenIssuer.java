@@ -27,7 +27,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class TokenIssuer {
 
-    static final String 이름 = "jg_auth";
+    /** 밖에서도 가리킨다 - 검사가 이 이름으로 쿠키를 싣는다. */
+    public static final String 이름 = "jg_auth";
 
     /**
      * 한 달.

@@ -59,6 +59,28 @@ public class AppUserStore {
      * 말이 된다. 쓰고 있는 사람은 올리지 않는다 - 그러면 로그인할 때마다 다른 기기에서
      * 로그아웃된다.
      */
+    /**
+     * 이 쿠키가 아직 쓸 수 있나.
+     *
+     * <p>탈퇴했거나 세대가 올라갔으면 {@code false} 다. <b>다른 주소에서는 이것을 따로
+     * 묻지 않는다</b> - 어차피 하는 질의에 조건으로 얹어서 왕복을 아낀다. 여기만
+     * 예외인데, 접어 넣을 질의가 없는 자리이기 때문이다({@code MeController}).
+     */
+    @Transactional(readOnly = true)
+    public boolean 살아있나(long id, int epoch) {
+        return db.sql(
+                        """
+                        SELECT EXISTS (SELECT 1 FROM app_user
+                                        WHERE id = :id
+                                          AND deleted_at IS NULL
+                                          AND token_epoch = :epoch)
+                        """)
+                .param("id", id)
+                .param("epoch", epoch)
+                .query(Boolean.class)
+                .single();
+    }
+
     @Transactional
     public 로그인한사람 로그인(String googleSub) {
         // ① 되돌릴 틈이 지난 것을 치운다. 기보도 CASCADE 로 같이 간다.
