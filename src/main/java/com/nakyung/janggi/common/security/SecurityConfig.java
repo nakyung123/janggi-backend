@@ -1,6 +1,10 @@
 package com.nakyung.janggi.common.security;
 
+import com.nakyung.janggi.auth.CookieAuthorizationRequestRepository;
+import com.nakyung.janggi.auth.LoginSuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,6 +35,8 @@ import org.springframework.security.web.savedrequest.NullRequestCache;
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     /**
      * 무상태로 둔다 - <b>네 군데를 다 막아야 한다.</b>
@@ -64,12 +70,20 @@ public class SecurityConfig {
      * 쿠키를 보지 않기 때문이다 - 남의 브라우저를 빌려서 보내도 얻는 것이 없다.
      */
     @Bean
-    SecurityFilterChain 울타리(HttpSecurity http) throws Exception {
+    SecurityFilterChain 울타리(
+            HttpSecurity http,
+            CookieAuthorizationRequestRepository state저장소,
+            LoginSuccessHandler 로그인성공) throws Exception {
         return http.authorizeHttpRequests(
                          길 ->
                                 길.requestMatchers(
                                                 "/events",
                                                 "/stats",
+                                                // 로그인 시작과 콜백. 스프링 필터가
+                                                // 먼저 집어가지만, 적어 두지 않으면
+                                                // 아래 denyAll 과 읽는 사람이 부딪힌다.
+                                                "/oauth2/authorization/**",
+                                                "/login/oauth2/code/**",
                                                 "/actuator/health",
                                                 "/actuator/health/**",
                                                 // 스프링이 오류를 여기로 한 번 더 보낸다.
@@ -86,6 +100,22 @@ public class SecurityConfig {
                          세션 -> 세션.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(c -> c.securityContextRepository(new NullSecurityContextRepository()))
                 .requestCache(c -> c.requestCache(new NullRequestCache()))
+                .oauth2Login(
+                        로그인 ->
+                                로그인.authorizationEndpoint(
+                                                시작 ->
+                                                        시작.authorizationRequestRepository(
+                                                                state저장소))
+                                        .successHandler(로그인성공)
+                                        // **failureUrl() 을 쓰지 않는다.** 기본 실패
+                                        // 처리기는 예외를 세션에 넣어 두는데, 그 한
+                                        // 줄이 세션을 만든다 - 무상태로 맞춰 둔 네
+                                        // 군데가 이 하나로 무너진다.
+                                        .failureHandler(
+                                                (요청, 답, 왜) -> {
+                                                    log.warn("로그인 실패: {}", 왜.getMessage());
+                                                    답.sendRedirect("/?login=fail");
+                                                }))
                 .exceptionHandling(
                         거절 ->
                                 거절.authenticationEntryPoint(

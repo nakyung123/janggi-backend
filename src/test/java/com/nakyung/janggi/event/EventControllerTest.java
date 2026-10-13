@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -22,15 +23,16 @@ import org.springframework.test.web.servlet.MockMvc;
  * 거기 있어서, 가짜로 바꾸면 <b>정작 확인하고 싶은 것을 안 거치게 된다.</b>
  */
 @WebMvcTest(EventController.class)
-// **SecurityConfig 를 같이 불러온다.** @WebMvcTest 는 조각이라 이것을 안 불러오고, 그러면
-// 스프링 보안 기본값이 걸려 모든 POST 가 CSRF 로 403 이 된다. 끼워 넣지 않고 필터를 끄는
-// 길도 있지만(addFilters = false) 그러면 **진짜 규칙을 안 거치는 테스트**가 된다 - 누가
-// 나중에 /events 를 CSRF 에서 빼는 줄을 지우면 이 테스트가 알려 줘야 한다.
-@Import({
-    EventService.class,
-    EventControllerTest.창고없이.class,
-    com.nakyung.janggi.common.security.SecurityConfig.class
-})
+// **보안 필터를 끈다.** 한때 SecurityConfig 를 끼워 넣어 두었는데, 그 설정이 로그인 쪽
+// 빈(state 저장소·성공 처리기)을 받게 되면서 조각 테스트가 줄 수 없는 것이 됐다. 억지로
+// 채우면 이 테스트에 JPA 와 DataSource 까지 딸려 와서, 거르는 규칙을 보려고 만든 것이
+// 통째로 무거워진다.
+//
+// **대신 그 보호가 더 나은 자리로 갔다.** /events 가 인증도 CSRF 토큰도 없이 들어오는
+// 것은 PublicPathsTest 가 진짜 HTTP 와 전체 설정으로 본다 - 누가 CSRF 예외를 지우면
+// 거기가 빨간불이 된다. 조각 테스트에서 같은 것을 한 번 더 볼 값이 없다.
+@AutoConfigureMockMvc(addFilters = false)
+@Import({EventService.class, EventControllerTest.창고없이.class})
 class EventControllerTest {
 
     /**
