@@ -15,7 +15,15 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 
 /**
@@ -103,6 +111,19 @@ public class SecurityConfig {
                 .csrf(
                         csrf ->
                                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                        // **기본 처리기(XOR)를 쓰지 않는다.** 스프링 6
+                                        // 부터 토큰을 XOR 로 가려 기대하는데, 쿠키에는
+                                        // 가리지 않은 값이 들어간다. 그래서 프런트가
+                                        // 쿠키를 읽어 머리글로 보내는 길이 **늘 403**
+                                        // 이 되고, 우리 거절 처리기가 그걸 404 로
+                                        // 바꿔서 "주소가 없나" 로 보이기까지 한다.
+                                        //
+                                        // XOR 은 응답 본문에 찍힌 토큰을 압축 공격으로
+                                        // 캐내는 것을 막으려는 것인데, 우리는 토큰을
+                                        // 본문에 찍지 않는다 - 쿠키로만 간다. 막을 것이
+                                        // 없는 자리에서 치르는 값이었다.
+                                        .csrfTokenRequestHandler(
+                                                new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers("/events"))
                 .sessionManagement(
                          세션 -> 세션.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -111,6 +132,15 @@ public class SecurityConfig {
                 // **쿠키를 읽는 필터를 인가 검사 바로 앞에 세운다.** 뒤에 세우면
                 // authenticated() 가 아직 아무도 없는 상태에서 판단한다.
                 .addFilterBefore(new AuthTokenFilter(토큰), AuthorizationFilter.class)
+                // **토큰을 한 번 읽어 쿠키가 실제로 나가게 한다.**
+                //
+                // 스프링은 CSRF 토큰을 미루어 둔다 - 누가 읽을 때까지 만들지도, 쿠키로
+                // 내보내지도 않는다. 서버가 화면을 그리던 시절에는 폼이 읽어 줬지만
+                // 우리는 그럴 자리가 없어서 **아무도 읽지 않고, 그러면 프런트가 토큰을
+                // 받을 길이 없다.** 그 상태로 두면 쿠키로 인증하는 모든 POST 가 403 인데
+                // 서버 쪽에는 아무 오류도 안 남는다. 가짜 구글로 로그인을 끝까지 돌려
+                // 보는 검사가 로그아웃에서 이것을 잡았다.
+                .addFilterAfter(new CsrfCookie(), CsrfFilter.class)
                 .logout(
                         나가기 ->
                                 나가기.logoutUrl("/logout")
@@ -151,5 +181,31 @@ public class SecurityConfig {
                                                         답.sendError(
                                                                 HttpServletResponse.SC_NOT_FOUND)))
                 .build();
+    }
+
+    /**
+     * CSRF 토큰을 한 번 읽어 {@code XSRF-TOKEN} 쿠키가 응답에 실리게 한다.
+     *
+     * <p><b>{@code /events} 에서는 건너뛴다.</b> 그 주소는 CSRF 를 안 쓰는데
+     * ({@code sendBeacon} 은 머리글을 못 붙인다) 응답마다 쓸 일 없는 쿠키를 하나씩
+     * 붙여 보낼 까닭이 없다. 하루에 가장 많이 불리는 주소다.
+     */
+    private static final class CsrfCookie extends OncePerRequestFilter {
+
+        @Override
+        protected boolean shouldNotFilter(HttpServletRequest 요청) {
+            return "/events".equals(요청.getServletPath());
+        }
+
+        @Override
+        protected void doFilterInternal(
+                HttpServletRequest 요청, HttpServletResponse 답, FilterChain 다음)
+                throws ServletException, IOException {
+            CsrfToken 토큰 = (CsrfToken) 요청.getAttribute(CsrfToken.class.getName());
+            if (토큰 != null) {
+                토큰.getToken();
+            }
+            다음.doFilter(요청, 답);
+        }
     }
 }
