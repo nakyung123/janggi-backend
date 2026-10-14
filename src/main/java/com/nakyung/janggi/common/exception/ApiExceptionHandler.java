@@ -24,7 +24,7 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
-    /** 우리가 정한 규칙을 어긴 것. 지금은 "모르는 이벤트 이름" 하나다. */
+    /** 우리가 정한 규칙을 어긴 것. 모르는 이벤트 이름, 기보 모양, 기보 판 수 한도. */
     @ExceptionHandler(BadRequestException.class)
     public ProblemDetail badRequest(BadRequestException e) {
         log.info("잘못된 요청: {}", e.getMessage());

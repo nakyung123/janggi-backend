@@ -8,6 +8,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,8 +38,13 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  *   <li><b>판 수</b> - 한 사람이 서버에 둘 수 있는 판
  * </ul>
  *
- * <p>판 수 한도는 500인데 검사에서 500판을 올리면 느리다. 그래서 <b>설정으로 낮춰</b>
- * 본다 - 숫자가 아니라 "넘으면 거절한다" 를 보는 것이 목적이다.
+ * <p>판 수 한도(500)는 설정이 아니라 자바 상수다. 그래서 낮춰서 보지 않고, <b>SQL 로
+ * 판을 미리 채워 넣고</b> 경계에서 올려 본다 - HTTP 로 500판을 올리면 느리기만 하다.
+ * 채우는 줄은 국면이 하나뿐인 작은 판이다. 세는 것은 줄 수라 내용은 상관없다.
+ *
+ * <p><b>동시에 올리는 경우를 같이 본다.</b> 세고 나서 넣는 사이가 비어 있으면 탭 두 개로
+ * 한도를 넘길 수 있다. 그 검사는 스레드를 한꺼번에 푸는 것으로는 <b>안 된다</b> -
+ * {@code 세는_사이에_끼어들지_못한다} 주석에 왜 안 되는지 적어 두었다.
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -61,16 +69,19 @@ class GameLimitsTest {
     @Autowired TokenIssuer 토큰;
     @Autowired AppUserStore 사용자창고;
     @Autowired JdbcClient sql;
+    @Autowired javax.sql.DataSource 연결통;
 
     private final HttpClient 손님 = HttpClient.newHttpClient();
     private String 내쿠키;
     private String 내csrf;
+    private long 내id;
 
     @BeforeEach
     void 비우기() {
         sql.sql("DELETE FROM game").update();
         sql.sql("DELETE FROM app_user").update();
         AppUserStore.로그인한사람 나 = 사용자창고.로그인("구글-sub-나");
+        내id = 나.id();
         MockHttpServletResponse 받아둘곳 = new MockHttpServletResponse();
         토큰.심기(받아둘곳, 나.id(), 나.epoch());
         내쿠키 = TokenIssuer.이름 + "=" + 받아둘곳.getCookie(TokenIssuer.이름).getValue();
@@ -111,9 +122,16 @@ class GameLimitsTest {
                 .formatted(id, 국면);
     }
 
+    /**
+     * 올린다.
+     *
+     * <p><b>시간 제한을 둔다.</b> 잠금이 기다리는 설계로 되돌아가면 답이 영원히 안 온다 -
+     * 그때 검사가 매달려 있지 않고 터지게 하려는 것이다.
+     */
     private HttpResponse<String> 올리기(String 본문) throws Exception {
         return 손님.send(
                 HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/games"))
+                        .timeout(Duration.ofSeconds(3))
                         .header("Cookie", 내쿠키 + "; XSRF-TOKEN=" + 내csrf)
                         .header("X-XSRF-TOKEN", 내csrf)
                         .header("Content-Type", "application/json")
@@ -219,6 +237,103 @@ class GameLimitsTest {
     void 번호가_길면() throws Exception {
         assertThat(올리기(올릴것("가".repeat(30), 2)).statusCode()).isEqualTo(400);
         assertThat(줄수()).isZero();
+    }
+
+    /**
+     * 판을 미리 채운다. <b>한 문장이다</b> - 499번 왕복하면 검사가 느려진다.
+     *
+     * @param 몇판 넣을 줄 수
+     */
+    private void 채우기(int 몇판) {
+        sql.sql(
+                        """
+                        INSERT INTO game (user_id, client_game_id, ended_at, my_side,
+                                          level_id, level_name, variant,
+                                          result_kind, moves_count, history)
+                        SELECT :uid, 'fill-' || g, now(), 'cho', 'k12', '12급', 'janggi',
+                               'resign', 1, '[{"fen":"판"}]'::jsonb
+                          FROM generate_series(1, :n) g
+                        """)
+                .param("uid", 내id)
+                .param("n", 몇판)
+                .update();
+    }
+
+    @Test
+    @DisplayName("499판에서 한 판 더는 되고, 500판에서는 400 - 경계를 양쪽으로 본다")
+    void 경계_499에서_500() throws Exception {
+        채우기(GameStore.한도 - 1);
+
+        // 500번째는 들어가야 한다. 여기서 막히면 한도가 하나 모자라게 세는 것이다.
+        assertThat(올리기(올릴것("판-500번째", 2)).statusCode()).isEqualTo(200);
+        assertThat(줄수()).isEqualTo(GameStore.한도);
+
+        HttpResponse<String> 답 = 올리기(올릴것("판-501번째", 2));
+
+        assertThat(답.statusCode()).isEqualTo(400);
+        // 사람이 무엇을 하면 되는지 적혀 있어야 한다.
+        assertThat(답.body()).contains("500").contains("지운 뒤에");
+        assertThat(줄수()).isEqualTo(GameStore.한도);
+    }
+
+    @Test
+    @DisplayName("꽉 찬 사람도 이미 올린 판은 다시 올릴 수 있다 - 줄이 늘지 않으니까")
+    void 한도에서_덮어쓰기() throws Exception {
+        채우기(GameStore.한도);
+
+        // 'fill-7' 은 채우기가 넣은 번호다. 덮어쓰기라 줄이 늘지 않는다.
+        assertThat(올리기(올릴것("fill-7", 5)).statusCode()).isEqualTo(200);
+        assertThat(줄수()).isEqualTo(GameStore.한도);
+        // 덮어쓴 것이 맞는지 본다. 수가 바뀌어 있어야 한다.
+        assertThat(
+                        sql.sql("SELECT moves_count FROM game WHERE client_game_id = 'fill-7'")
+                                .query(Integer.class)
+                                .single())
+                .isEqualTo(4);
+    }
+
+    /**
+     * <b>겹침을 운에 맡기지 않는다.</b>
+     *
+     * <p>스레드 여덟 개로 한꺼번에 올려 보는 검사를 먼저 만들었는데, <b>잠금을 빼고
+     * 돌려도 통과했다.</b> 빈틈이 한 문장 사이라 ms 단위고, HTTP 와 톰캣을 지나오는
+     * 동안 요청이 어긋나서 각자 앞 요청이 넣은 줄을 보게 된다. 경합은 있는데 검사가
+     * 재현을 못 하는 것이다.
+     *
+     * <p>그래서 <b>검사 쪽에서 그 줄을 먼저 잠그고</b> 올려 본다. 세 가지가 한꺼번에
+     * 걸린다.
+     *
+     * <ul>
+     *   <li>잠금이 아예 없으면 - 그냥 들어가서 200 이 된다
+     *   <li>기다리는 잠금이면 - 3초 안에 답이 없어 시간 초과로 터진다
+     *   <li>{@code NOWAIT} 이면 - 바로 거절하고 다시 올리라고 한다
+     * </ul>
+     *
+     * <p><b>기다리면 안 되는 까닭</b>은 연결 풀이 2개라서다. 기다리는 쪽이 연결을 쥐고
+     * 있으면 {@code /events} 와 {@code /me} 가 연결을 못 받는다.
+     */
+    @Test
+    @DisplayName("앞사람이 내 줄을 쥐고 있으면 기다리지 않고 거절한다 - 연결 둘을 지킨다")
+    void 겹치면_기다리지_않고_거절한다() throws Exception {
+        try (Connection 딴연결 = 연결통.getConnection()) {
+            딴연결.setAutoCommit(false);
+            try (PreparedStatement 잠그기 =
+                    딴연결.prepareStatement("SELECT 1 FROM app_user WHERE id = ? FOR UPDATE")) {
+                잠그기.setLong(1, 내id);
+                잠그기.executeQuery().close();
+            }
+
+            HttpResponse<String> 답 = 올리기(올릴것("판-겹친것", 2));
+
+            assertThat(답.statusCode()).isEqualTo(400);
+            assertThat(답.body()).contains("잠시 뒤 다시");
+
+            딴연결.rollback();
+        }
+
+        // 잠금이 풀리면 같은 요청이 들어가야 한다. 거절이 "영구히 막힌 것" 이 아님을 본다.
+        assertThat(올리기(올릴것("판-겹친것", 2)).statusCode()).isEqualTo(200);
+        assertThat(줄수()).isEqualTo(1);
     }
 
     private long 줄수() {

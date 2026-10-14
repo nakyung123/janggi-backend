@@ -8,6 +8,9 @@ import com.nakyung.janggi.game.dto.GameSummary;
 import com.nakyung.janggi.game.dto.GameUpload;
 import java.util.List;
 import java.util.Optional;
+import java.sql.SQLException;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -21,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 계정의 쿠키가 그대로 통하고, {@code userId} 를 빠뜨리면 남의 기보가 보인다.
  *
  * <p><b>계정이 살아 있는지 따로 묻지 않는다.</b> 어차피 하는 질의에 조건으로 얹는다 -
- * DB 왕복이 155ms 라(재 봤다) 한 번 더 묻는 값이 응답 시간의 절반이 된다.
+ * DB 왕복이 155ms 라(재 봤다) 한 번 더 묻는 값이 응답 시간의 절반이 된다. 올리기만
+ * 예외로 질의가 둘인데, 그건 계정을 묻기 위한 것이 아니라 <b>판 수를 세는 동안 끼어들지
+ * 못하게 잠그기</b> 위한 것이다. 그 잠그는 질의에 계정 조건을 얹었으므로 왕복은 둘이다.
  *
  * <p><b>없는 것과 남의 것을 가르지 않는다.</b> 둘 다 "없다" 로 답한다. 가르면 "거기 뭔가
  * 있다" 를 알려주는 셈이고, {@code TokenFilter} 가 404 를 고른 까닭과 같다.
@@ -68,26 +73,44 @@ public class GameStore {
     public long 올리기(long userId, int epoch, GameUpload 올릴것) {
         확인(올릴것);
 
-        // **한도를 먼저 센다.** 덮어쓰기는 줄이 늘지 않으므로 막지 않는다 - 500판을 가진
-        // 사람이 복기를 돌려 다시 올리는 것을 거절하면 그게 더 이상한 일이다.
-        Integer 지금 =
-                db.sql(
-                                """
-                                SELECT count(*) FROM game
-                                 WHERE user_id = :uid
-                                   AND client_game_id <> :cid
-                                   AND EXISTS (SELECT 1 FROM app_user
-                                                WHERE id = :uid AND deleted_at IS NULL
-                                                  AND token_epoch = :epoch)
-                                """)
-                        .param("uid", userId)
-                        .param("cid", 올릴것.id())
-                        .param("epoch", epoch)
-                        .query(Integer.class)
-                        .single();
-        if (지금 >= 한도) {
-            throw new BadRequestException(
-                    "서버에 둘 수 있는 기보가 " + 한도 + "판까지입니다. 지운 뒤에 올려 주세요.");
+        // **먼저 이 사람의 줄을 잠근다.** 세는 것과 넣는 것이 떨어져 있으면 그 사이가
+        // 비어 있다 - 탭 두 개에서 동시에 올리면 둘 다 499를 세고 둘 다 넣어 501판이 된다.
+        // 계정이 살아 있는지도 여기서 같이 본다. 질의를 하나 더 늘리지 않기 위해서다.
+        //
+        // **세는 일을 아래 INSERT 안으로 옮긴 까닭** - 한 문장 안에서는 잠금이 소용없다.
+        // 문장이 시작될 때 찍은 사진으로 세기 때문에, 잠금을 기다렸다 깨어나도 세는 값은
+        // 기다리기 전의 것이다. 세는 문장이 **잠근 다음에 시작**해야 앞 요청이 넣은 줄이
+        // 보인다.
+        //
+        // **NOWAIT 이다. 기다리지 않는다.** 연결 풀이 2개다(무료 한도에 맞춘 값,
+        // application.properties 에 까닭이 적혀 있다). 기다리는 쪽은 그 동안 연결을 쥐고
+        // 있으므로, 올리기 둘이 겹치면 /events 와 /me 가 연결을 못 받아 30초를 기다리게
+        // 된다. **501판이 되는 것보다 그게 훨씬 나쁘다.** 겹치면 바로 거절하고 다시
+        // 올리라고 한다 - 기보는 브라우저에 그대로 있으니 잃는 것이 없다.
+        boolean 내줄을잠갔다;
+        try {
+            내줄을잠갔다 =
+                    db.sql(
+                                    """
+                                    SELECT 1 FROM app_user
+                                     WHERE id = :uid AND deleted_at IS NULL
+                                       AND token_epoch = :epoch
+                                     FOR UPDATE NOWAIT
+                                    """)
+                            .param("uid", userId)
+                            .param("epoch", epoch)
+                            .query(Integer.class)
+                            .optional()
+                            .isPresent();
+        } catch (DataAccessException e) {
+            if (!겹쳤나(e)) {
+                throw e;
+            }
+            // 같은 사람의 올리기가 이미 돌고 있다. 탈퇴가 돌고 있을 때도 여기로 온다.
+            throw new BadRequestException("방금 올린 것이 아직 처리 중입니다. 잠시 뒤 다시 올려 주세요.");
+        }
+        if (!내줄을잠갔다) {
+            throw new BadRequestException("로그인이 만료되었습니다. 다시 로그인해 주세요.");
         }
 
         try {
@@ -104,6 +127,12 @@ public class GameStore {
                              WHERE EXISTS (SELECT 1 FROM app_user
                                             WHERE id = :uid AND deleted_at IS NULL
                                               AND token_epoch = :epoch)
+                               -- 같은 번호는 안 센다. 덮어쓰기는 줄이 늘지 않으므로
+                               -- 막지 않는다 - 500판 가진 사람이 복기를 돌려 다시
+                               -- 올리는 것을 거절하면 그게 더 이상한 일이다.
+                               AND (SELECT count(*) FROM game
+                                     WHERE user_id = :uid
+                                       AND client_game_id <> :cid) < :maxGames
                             ON CONFLICT (user_id, client_game_id) DO UPDATE
                                SET ended_at      = EXCLUDED.ended_at,
                                    my_side       = EXCLUDED.my_side,
@@ -121,6 +150,7 @@ public class GameStore {
                     .param("uid", userId)
                     .param("epoch", epoch)
                     .param("cid", 올릴것.id())
+                    .param("maxGames", 한도)
                     .param("ended", 올릴것.endedAt())
                     .param("side", 올릴것.mySide())
                     .param("levelId", 올릴것.levelId())
@@ -133,9 +163,15 @@ public class GameStore {
                     .param("reviewed", 비었나(올릴것.reviewed()) ? null : 올릴것.reviewed().toString())
                     .query(Long.class)
                     .optional()
-                    // **0줄이면 계정이 없거나 탈퇴했거나 세대가 다르다.** WHERE EXISTS 가
-                    // 거짓이면 INSERT 가 한 줄도 안 만들고, 그러면 RETURNING 도 비어 있다.
-                    .orElseThrow(() -> new BadRequestException("로그인이 만료되었습니다. 다시 로그인해 주세요."));
+                    // **0줄이면 한도를 넘은 것이다.** 조건이 거짓이면 INSERT 가 한 줄도
+                    // 안 만들고, 그러면 RETURNING 도 비어 있다. 계정 조건은 바로 위에서
+                    // 잠그면서 이미 확인했고 그 잠금을 쥐고 있으므로, 남는 까닭은 판 수뿐이다.
+                    .orElseThrow(
+                            () ->
+                                    new BadRequestException(
+                                            "서버에 둘 수 있는 기보가 "
+                                                    + 한도
+                                                    + "판까지입니다. 지운 뒤에 올려 주세요."));
         } catch (DataIntegrityViolationException e) {
             // app_user 가 사라진 바로 그 순간 올라오면 외래 키에서 걸린다. 위의 EXISTS 와
             // 같은 뜻이라 같은 말을 한다.
@@ -247,6 +283,25 @@ public class GameStore {
      * <p>모양을 못 박지는 않지만(프런트가 칸을 더할 수 있어야 한다) <b>우리가 꺼내 쓰는
      * 것</b>과 <b>개수</b>는 본다. 본문 전체 크기는 문지기가 따로 막는다.
      */
+    /** 잠긴 줄을 못 잡아서 터진 것인가. */
+    private static final String 잠금_못_잡음 = "55P03";
+
+    /**
+     * {@code NOWAIT} 가 걸려서 터진 것인지 가린다.
+     *
+     * <p><b>스프링이 이 코드를 분류하지 않는다.</b> {@code 40001}(직렬화 실패)은
+     * {@code CannotAcquireLockException} 으로 바꿔 주는데 {@code 55P03} 은 그냥
+     * {@code UncategorizedSQLException} 으로 나온다. 그래서 SQLSTATE 를 직접 본다.
+     * 뒷날 스프링이 분류하게 되면 첫 줄로 걸린다.
+     */
+    private static boolean 겹쳤나(DataAccessException e) {
+        if (e instanceof CannotAcquireLockException) {
+            return true;
+        }
+        Throwable 속 = e.getMostSpecificCause();
+        return 속 instanceof SQLException sql && 잠금_못_잡음.equals(sql.getSQLState());
+    }
+
     private void 확인(GameUpload 올릴것) {
         JsonNode 국면들 = 올릴것.history();
         if (!국면들.isArray() || 국면들.isEmpty()) {
