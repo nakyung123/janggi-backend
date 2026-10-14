@@ -9,7 +9,10 @@ import java.net.http.HttpResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * <b>보안을 넣고도 열려 있어야 하는 것이 그대로 열려 있나.</b>
@@ -27,6 +30,9 @@ import org.springframework.boot.test.web.server.LocalServerPort;
         // 건수 제한이 끼어들면 어느 쪽이 거절했는지 알 수 없다.
         properties = "janggi.guard.limit-per-minute=1000")
 class PublicPathsTest {
+
+    /** 울타리의 permitAll 목록에 없는 주소. 아래 검사용 컨트롤러가 이 자리를 맡는다. */
+    private static final String 안적힌길 = "/test-unlisted";
 
     @LocalServerPort int port;
 
@@ -77,9 +83,37 @@ class PublicPathsTest {
         // **403 이 아니라 404 다.** 403 으로 두면 없는 주소는 403, /stats 는 404 가 되어
         // 통계 주소만 튄다. TokenFilter 가 404 를 고른 까닭과 같다.
         //
-        // **이 단정은 지금 이가 약하다** - 보안이 꺼져 있어도 /games 가 없으니 404 다.
-        // 오늘 이 설정이 일하고 있다는 증거는 위의 세 검사이고(설정을 떼면 빨간불이 된다),
-        // 여기에 이가 생기는 것은 기보 주소가 실제로 생기는 3단계다.
-        assertThat(가져오기("/games").statusCode()).isEqualTo(404);
+        // **매핑이 없는 주소로 부른다.** 전에는 /games 로 불렀는데, 기보 주소가 생기면서
+        // 그것은 "적어 두지 않은 주소" 가 아니라 **로그인해야 열리는 주소**가 됐다. 그대로
+        // 두면 이름과 다른 것을 보게 된다. 단수형을 고른 까닭은 **있을 법한 오타**라서다.
+        // 한글 주소는 쓰지 않는다 - URI.create 가 ASCII 가 아닌 글자에서 터진다.
+        //
+        // **이 단정으로는 울타리가 일하는지 알 수 없다.** 다룰 자리가 없으면 막든 열든
+        // 스프링이 404 를 낸다. 재 봤다 - denyAll 을 permitAll 로 바꾸고 전체를 돌렸는데
+        // 하나도 안 깨졌다. 그래서 아래 검사를 따로 둔다.
+        assertThat(가져오기("/game").statusCode()).isEqualTo(404);
+    }
+
+    /**
+     * 울타리에 안 적힌 주소를 <b>검사에서만</b> 하나 만든다.
+     *
+     * <p>이것이 없으면 {@code anyRequest().denyAll()} 가지를 아무도 안 본다. 기본값이
+     * "막는다" 에서 "연다" 로 바뀌면 <b>앞으로 더하는 주소가 전부 열린 채로 나간다</b> -
+     * 적어 두는 것을 깜빡한 사람은 그 사실도 모른다.
+     */
+    @TestConfiguration
+    @RestController
+    static class 안적힌주소 {
+
+        @GetMapping(안적힌길)
+        String 답() {
+            return "열렸다";
+        }
+    }
+
+    @Test
+    @DisplayName("울타리에 안 적힌 주소는 다룰 자리가 있어도 404 - 기본값이 '막는다' 여야 한다")
+    void 안_적힌_주소() throws Exception {
+        assertThat(가져오기(안적힌길).statusCode()).isEqualTo(404);
     }
 }
