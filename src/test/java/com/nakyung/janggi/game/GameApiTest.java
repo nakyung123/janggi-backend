@@ -182,6 +182,9 @@ class GameApiTest {
         assertThat(목록.get(0).path("reviewed").asBoolean()).isTrue();
         // **목록에 판의 내용이 실려 있지 않다.** 실리면 스무 판에 800KB가 오간다.
         assertThat(목록.get(0).has("history")).isFalse();
+        // **마지막 국면 한 칸은 온다.** 목록 카드가 끝난 판을 작은 그림으로 그리는 데
+        // 쓴다. 이것이 없으면 브라우저가 판 하나하나를 또 불러야 한다.
+        assertThat(목록.get(0).path("lastFen").asString()).isEqualTo("판모양3");
 
         JsonNode 하나 = 나무(보내기("/games/" + 서버번호, "GET", null, 내쿠키).body());
         assertThat(하나.path("history").size()).isEqualTo(4);
@@ -322,7 +325,12 @@ class GameApiTest {
         // 응답 쪽은 사실 **GameSummary 의 모양이 막고 있다** - 그 레코드에 내용 칸이
         // 없으니 SELECT * 로 고쳐도 실려 나갈 자리가 없다. 이 검사는 그 모양이 바뀌는
         // 날을 위한 울타리다.
-        assertThat(목록).doesNotContain("fen").doesNotContain("playedPlain");
+        // **`"fen"` 과 `lastFen` 을 가려서 본다.** 금지하는 것은 국면 목록이 통째로
+        // 실려 오는 것이고, 요약의 마지막 국면 한 칸은 와야 한다. 따옴표까지 넣어 찾지
+        // 않으면 `lastFen` 때문에 이 단정이 늘 참이 되거나 늘 거짓이 된다.
+        assertThat(목록).doesNotContain("\"fen\"").doesNotContain("playedPlain");
+        assertThat(목록).contains("lastFen");
+        assertThat(나무(목록).get(0).path("lastFen").asString()).isEqualTo("판모양100");
         assertThat(목록.length()).isLessThan(3000);
         assertThat(나무(목록).size()).isEqualTo(5);
 

@@ -25,4 +25,13 @@ public record GameSummary(
         String resultKind,
         String resultWinner,
         int moves,
-        boolean reviewed) {}
+        boolean reviewed,
+
+        /**
+         * 끝났을 때의 판(FEN) 하나.
+         *
+         * <p><b>내용 전체를 주지 않으려고 이 한 칸만 뽑는다.</b> 목록 카드가 끝난 판을
+         * 작은 그림으로 보여 주는데 거기 필요한 것이 이것뿐이다. 없으면 브라우저가 판
+         * 하나하나를 또 불러야 한다 - 스무 판이면 스무 번이다.
+         */
+        String lastFen) {}

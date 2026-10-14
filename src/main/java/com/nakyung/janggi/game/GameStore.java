@@ -192,7 +192,11 @@ public class GameStore {
                         SELECT g.id, g.client_game_id, g.ended_at, g.my_side,
                                g.level_id, g.level_name, g.variant,
                                g.result_kind, g.result_winner, g.moves_count,
-                               g.reviewed IS NOT NULL AS has_review
+                               g.reviewed IS NOT NULL AS has_review,
+                               -- **마지막 국면 한 칸만 뽑는다.** 목록 카드가 끝난 판을
+                               -- 작은 판으로 그리는데, 그 그림에 필요한 것이 이것뿐이다.
+                               -- history 를 통째로 주면 20판 목록에 800KB 가 끌려온다.
+                               g.history -> -1 ->> 'fen' AS last_fen
                           FROM game g
                          WHERE g.user_id = :uid
                            AND EXISTS (SELECT 1 FROM app_user
@@ -217,7 +221,8 @@ public class GameStore {
                                         rs.getString("result_kind"),
                                         rs.getString("result_winner"),
                                         rs.getInt("moves_count"),
-                                        rs.getBoolean("has_review")))
+                                        rs.getBoolean("has_review"),
+                                        rs.getString("last_fen")))
                 .list();
     }
 
