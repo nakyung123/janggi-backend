@@ -37,8 +37,8 @@ class EventLogLineTest {
 
     @BeforeEach
     void 준비() {
-        // 여기서 보려는 것은 **적히는 줄의 모양**뿐이라 창고는 아무것도 안 하는 것을 끼운다.
-        // 진짜 창고를 쓰면 이 테스트가 Postgres 를 띄워야 한다 - 보려는 것과 상관없는 값이다.
+        // 여기서 보려는 것은 **적히는 줄의 모양**뿐이라 저장소는 아무것도 안 하는 것을 끼운다.
+        // 진짜 저장소를 쓰면 이 테스트가 Postgres 를 띄워야 한다 - 보려는 것과 상관없는 값이다.
         service = new EventService(JsonMapper.builder().build(), (events, receivedAt) -> {});
 
         담아두기 = new ListAppender<>();

@@ -32,20 +32,20 @@ import org.springframework.test.web.servlet.MockMvc;
 // 것은 PublicPathsTest 가 진짜 HTTP 와 전체 설정으로 본다 - 누가 CSRF 예외를 지우면
 // 거기가 빨간불이 된다. 조각 테스트에서 같은 것을 한 번 더 볼 값이 없다.
 @AutoConfigureMockMvc(addFilters = false)
-@Import({EventService.class, EventControllerTest.창고없이.class})
+@Import({EventService.class, EventControllerTest.저장소없이.class})
 class EventControllerTest {
 
     /**
      * 쌓는 쪽은 끼우지 않는다.
      *
-     * <p>여기서 보는 것은 <b>거르는 규칙</b>이다. 진짜 창고를 끼우면 {@code @WebMvcTest}
+     * <p>여기서 보는 것은 <b>거르는 규칙</b>이다. 진짜 저장소를 끼우면 {@code @WebMvcTest}
      * 에 JPA 와 Postgres 가 통째로 딸려 오는데, 그것들이 이 테스트가 보려는 것에 보태는
      * 것이 없다. 쌓는 것이 제대로 되는지는 {@code EventRepositoryTest} 가 진짜 DB 로 본다.
      */
     @TestConfiguration
-    static class 창고없이 {
+    static class 저장소없이 {
         @Bean
-        EventStore 창고() {
+        EventStore 저장소() {
             return (events, receivedAt) -> {};
         }
     }

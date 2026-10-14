@@ -82,7 +82,7 @@ public class SecurityConfig {
      * 쿠키를 보지 않기 때문이다 - 남의 브라우저를 빌려서 보내도 얻는 것이 없다.
      */
     @Bean
-    SecurityFilterChain 울타리(
+    SecurityFilterChain 보안설정(
             HttpSecurity http,
             CookieAuthorizationRequestRepository state저장소,
             LoginSuccessHandler 로그인성공,

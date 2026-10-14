@@ -7,9 +7,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
 /**
- * 문지기가 거절할 때 쓰는 응답.
+ * 요청 제한이 거절할 때 쓰는 응답.
  *
- * <p>문지기는 스프링 MVC 보다 앞에 서 있어서 {@code @RestControllerAdvice} 가 받아
+ * <p>요청 제한은 스프링 MVC 보다 앞에 서 있어서 {@code @RestControllerAdvice} 가 받아
  * 주지 못한다. 그래서 {@code ApiExceptionHandler} 와 <b>같은 모양(RFC 9457)</b>을
  * 여기서 손으로 만든다. 모양이 달라지면 보낸 쪽에서 "왜 거절됐나" 를 두 가지 방식으로
  * 읽어야 한다.

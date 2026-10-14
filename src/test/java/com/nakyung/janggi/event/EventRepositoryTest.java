@@ -134,7 +134,7 @@ class EventRepositoryTest {
 
     @Test
     @DisplayName("묶음 중 하나라도 못 넣으면 앞엣것도 되돌아간다")
-    // **이 테스트만 테스트 트랜잭션 밖에서 돈다.** 안에서 돌리면 창고의 실패가 바깥
+    // **이 테스트만 테스트 트랜잭션 밖에서 돈다.** 안에서 돌리면 저장소의 실패가 바깥
     // 트랜잭션까지 '되돌릴 것' 으로 표시해서, 그 뒤 확인 질의가 아예 못 돈다. 되돌아간
     // 것을 보려면 되돌림이 진짜로 끝난 뒤에 봐야 한다.
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

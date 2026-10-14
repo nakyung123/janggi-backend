@@ -167,7 +167,7 @@ class LoginFlowTest {
     @Autowired JdbcClient sql;
 
     /** 리다이렉트를 따라가지 않는다 - 단계마다 머리글을 봐야 한다. */
-    private final HttpClient 손님 =
+    private final HttpClient http =
             HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
 
     @BeforeEach
@@ -185,7 +185,7 @@ class LoginFlowTest {
 
     private 시작 로그인시작() throws Exception {
         HttpResponse<String> 답 =
-                손님.send(
+                http.send(
                         HttpRequest.newBuilder(URI.create(터("/oauth2/authorization/google")))
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
@@ -238,7 +238,7 @@ class LoginFlowTest {
         if (쿠키 != null) {
             b.header("Cookie", 쿠키);
         }
-        return 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private String 로그인쿠키(HttpResponse<String> 답) {
@@ -254,7 +254,7 @@ class LoginFlowTest {
         if (쿠키 != null) {
             b.header("Cookie", 쿠키);
         }
-        return 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     @Test
@@ -370,7 +370,7 @@ class LoginFlowTest {
         HttpResponse<String> 받기 = 나를_묻기(로그인쿠키);
         String csrf = Csrf값(받기);
         HttpResponse<String> 나가기 =
-                손님.send(
+                http.send(
                         HttpRequest.newBuilder(URI.create(터("/logout")))
                                 .header("Cookie", 로그인쿠키 + "; XSRF-TOKEN=" + csrf)
                                 .header("X-XSRF-TOKEN", csrf)

@@ -34,7 +34,7 @@ class AppUserStoreTest {
     @Container @ServiceConnection
     static PostgreSQLContainer db = new PostgreSQLContainer("postgres:18-alpine");
 
-    @Autowired AppUserStore 창고;
+    @Autowired AppUserStore 저장소;
     @Autowired JdbcClient sql;
 
     /**
@@ -60,7 +60,7 @@ class AppUserStoreTest {
     @Test
     @DisplayName("처음 온 사람은 새 계정이고 epoch 이 1 이다")
     void 처음() {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
 
         assertThat(사람.id()).isPositive();
         assertThat(사람.epoch()).isEqualTo(1);
@@ -69,8 +69,8 @@ class AppUserStoreTest {
     @Test
     @DisplayName("쓰고 있는 사람은 같은 계정이고 epoch 이 안 바뀐다 - 로그인할 때마다 다른 기기가 로그아웃되면 안 된다")
     void 다시_로그인() {
-        AppUserStore.로그인한사람 처음 = 창고.로그인("구글-sub-1");
-        AppUserStore.로그인한사람 두번째 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 처음 = 저장소.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 두번째 = 저장소.로그인("구글-sub-1");
 
         assertThat(두번째.id()).isEqualTo(처음.id());
         assertThat(두번째.epoch()).isEqualTo(처음.epoch());
@@ -79,10 +79,10 @@ class AppUserStoreTest {
     @Test
     @DisplayName("30일 안에 탈퇴한 사람은 같은 계정으로 돌아오고 epoch 이 올라간다")
     void 되돌릴_틈_안() {
-        AppUserStore.로그인한사람 처음 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 처음 = 저장소.로그인("구글-sub-1");
         탈퇴시키기(처음.id(), 3);
 
-        AppUserStore.로그인한사람 돌아온사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 돌아온사람 = 저장소.로그인("구글-sub-1");
 
         // 같은 줄이라 기보가 그대로 있다.
         assertThat(돌아온사람.id()).isEqualTo(처음.id());
@@ -95,10 +95,10 @@ class AppUserStoreTest {
     @Test
     @DisplayName("30일이 지난 뒤 다시 오면 새 계정이다 - 옛 기보는 없다")
     void 되돌릴_틈_지남() {
-        AppUserStore.로그인한사람 처음 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 처음 = 저장소.로그인("구글-sub-1");
         탈퇴시키기(처음.id(), 31);
 
-        AppUserStore.로그인한사람 새사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 새사람 = 저장소.로그인("구글-sub-1");
 
         assertThat(새사람.id()).isNotEqualTo(처음.id());
         assertThat(새사람.epoch()).isEqualTo(1);
@@ -108,10 +108,10 @@ class AppUserStoreTest {
     @Test
     @DisplayName("경계 - 딱 30일은 아직 되돌릴 수 있다")
     void 경계() {
-        AppUserStore.로그인한사람 처음 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 처음 = 저장소.로그인("구글-sub-1");
         탈퇴시키기(처음.id(), 29);
 
-        assertThat(창고.로그인("구글-sub-1").id()).isEqualTo(처음.id());
+        assertThat(저장소.로그인("구글-sub-1").id()).isEqualTo(처음.id());
     }
 
     @Test
@@ -119,7 +119,7 @@ class AppUserStoreTest {
     void 두_문장인_까닭() {
         // 이 검사는 코드가 아니라 **표의 성질**을 본다. 한 문장(INSERT)만으로 하려
         // 했다면 여기서 터졌을 것이고, 그 까닭을 기억하려고 남겨 둔다.
-        AppUserStore.로그인한사람 처음 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 처음 = 저장소.로그인("구글-sub-1");
         탈퇴시키기(처음.id(), 31);
 
         assertThatThrownBy(
@@ -132,7 +132,7 @@ class AppUserStoreTest {
     @Test
     @DisplayName("다른 사람은 다른 계정이다")
     void 다른_사람() {
-        assertThat(창고.로그인("구글-sub-1").id()).isNotEqualTo(창고.로그인("구글-sub-2").id());
+        assertThat(저장소.로그인("구글-sub-1").id()).isNotEqualTo(저장소.로그인("구글-sub-2").id());
         assertThat(줄수()).isEqualTo(2);
     }
 

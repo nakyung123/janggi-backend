@@ -11,7 +11,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "janggi.guard.max-body-bytes=200",
-            // 건수 제한이 끼어들지 않게 넉넉히 둔다. 두 문지기를 한 테스트에서 같이
+            // 건수 제한이 끼어들지 않게 넉넉히 둔다. 두 요청 제한을 한 테스트에서 같이
             // 건드리면 어느 쪽이 거절했는지 알 수 없다.
             "janggi.guard.limit-per-minute=1000"
         })
@@ -65,9 +65,9 @@ class RequestSizeFilterTest {
     }
 
     @Test
-    @DisplayName("상태 확인은 크기 문지기를 거치지 않는다")
+    @DisplayName("상태 확인은 크기 요청 제한을 거치지 않는다")
     void 상태_확인은_통과() throws Exception {
-        // GET 에는 길이가 없다. 문지기가 모든 주소에 붙어 있었다면 여기서 411 이 난다.
+        // GET 에는 길이가 없다. 요청 제한이 모든 주소에 붙어 있었다면 여기서 411 이 난다.
         // 그러면 Cloud Run 이 서버가 죽은 줄 알고 계속 다시 띄우고, 그게 요금이 된다.
         assertThat(Http.getHealth(port).statusCode()).isEqualTo(200);
     }

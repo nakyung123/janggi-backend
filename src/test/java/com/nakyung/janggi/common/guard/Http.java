@@ -9,9 +9,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
- * 문지기 테스트용 HTTP 호출.
+ * 요청 제한 테스트용 HTTP 호출.
  *
- * <p>MockMvc 가 아니라 <b>진짜 소켓으로</b> 부른다. 문지기는 스프링 MVC 보다 앞에 서
+ * <p>MockMvc 가 아니라 <b>진짜 소켓으로</b> 부른다. 요청 제한은 스프링 MVC 보다 앞에 서
  * 있고, "어느 주소에 붙는가" 를 정하는 것이 {@code FilterRegistrationBean} 이라서 가짜
  * 요청으로는 그 등록이 맞는지 확인할 수 없다.
  *

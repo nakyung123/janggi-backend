@@ -137,7 +137,7 @@ gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
 
 **2026-10-10 에 `--no-dry-run` 으로 바꿨다.** 하루 기다려 dry-run 결과를 보려 했는데
 **기다려도 배울 것이 없었다** - 이미지가 1판뿐이라 지울 대상이 0개다. 자동 배포가 켜지면
-푸시마다 이미지가 쌓이므로 **울타리를 먼저 세우고 수도를 틀었다.**
+푸시마다 이미지가 쌓이므로 **막는 것을 먼저 만들고 배포를 켰다.**
 
 **좁은 길 하나.** `--min-instances=0` 이라 쉬다 깨어날 때마다 이미지를 새로 받는다. 쓰고
 있는 이미지가 지워지면 **그때 서비스가 깨진다.** 최신 5판은 보호되고 배포는 항상 최신으로
@@ -197,7 +197,7 @@ gcloud iam service-accounts add-iam-policy-binding $SA \
   --member="principalSet://iam.googleapis.com/projects/$NUM/locations/global/workloadIdentityPools/github/attribute.repository/$GH"
 ```
 
-끌어온 PR(fork)에서는 배포가 돌지 않는다. 울타리가 둘이다 - 워크플로의 조건이
+끌어온 PR(fork)에서는 배포가 돌지 않는다. 막는 곳이 둘이다 - 워크플로의 조건이
 `push` + `main` 만 받고, 위의 `attribute-condition` 이 저장소를 묶는다.
 
 ## 되돌리기

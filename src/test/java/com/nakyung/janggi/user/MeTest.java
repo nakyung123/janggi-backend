@@ -49,10 +49,10 @@ class MeTest {
     @LocalServerPort int port;
 
     @Autowired TokenIssuer 토큰;
-    @Autowired AppUserStore 창고;
+    @Autowired AppUserStore 저장소;
     @Autowired JdbcClient sql;
 
-    private final HttpClient 손님 = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newHttpClient();
 
     @BeforeEach
     void 비우기() {
@@ -72,7 +72,7 @@ class MeTest {
         if (쿠키 != null) {
             b.header("Cookie", 쿠키);
         }
-        return 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     @Test
@@ -87,7 +87,7 @@ class MeTest {
     @Test
     @DisplayName("로그인한 사람의 쿠키면 loggedIn=true - 쿠키·필터·질의가 다 맞아야 여기 온다")
     void 로그인한_사람() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
 
         HttpResponse<String> 답 = 나를_묻기(쿠키(사람.id(), 사람.epoch()));
 
@@ -98,14 +98,14 @@ class MeTest {
     @Test
     @DisplayName("세대가 안 맞으면 false - 탈퇴하고 되살린 뒤 옛 쿠키가 통하면 안 된다")
     void 세대가_다르면() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
         String 옛쿠키 = 쿠키(사람.id(), 사람.epoch());
 
         // 탈퇴 → 되돌릴 틈 안에 다시 로그인하면 세대가 올라간다.
         sql.sql("UPDATE app_user SET deleted_at = now() WHERE id = :id")
                 .param("id", 사람.id())
                 .update();
-        AppUserStore.로그인한사람 돌아온사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 돌아온사람 = 저장소.로그인("구글-sub-1");
 
         assertThat(돌아온사람.epoch()).isEqualTo(사람.epoch() + 1);
         assertThat(나를_묻기(옛쿠키).body()).contains("\"loggedIn\":false");
@@ -116,7 +116,7 @@ class MeTest {
     @Test
     @DisplayName("탈퇴 중이면 false - 줄은 남아 있어도 로그인은 아니다")
     void 탈퇴_중이면() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
         String 쿠키 = 쿠키(사람.id(), 사람.epoch());
 
         sql.sql("UPDATE app_user SET deleted_at = now() WHERE id = :id")
@@ -129,8 +129,8 @@ class MeTest {
     @Test
     @DisplayName("고친 쿠키는 없는 것과 같다 - 남의 번호로 바꿔 쓸 수 없다")
     void 고친_쿠키() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
-        AppUserStore.로그인한사람 남 = 창고.로그인("구글-sub-2");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 남 = 저장소.로그인("구글-sub-2");
 
         String 고친것 =
                 쿠키(사람.id(), 사람.epoch())
@@ -148,7 +148,7 @@ class MeTest {
     @Test
     @DisplayName("탈퇴하면 로그인이 풀리고 쿠키가 지워진다 - 줄은 남는다")
     void 탈퇴() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
         String 쿠키 = 쿠키(사람.id(), 사람.epoch());
 
         HttpResponse<String> 답 = 탈퇴하기(쿠키);
@@ -165,10 +165,10 @@ class MeTest {
     @Test
     @DisplayName("30일 안에 다시 로그인하면 돌아온다 - 같은 번호에 세대만 오른다")
     void 탈퇴하고_돌아오기() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
         탈퇴하기(쿠키(사람.id(), 사람.epoch()));
 
-        AppUserStore.로그인한사람 돌아온사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 돌아온사람 = 저장소.로그인("구글-sub-1");
 
         assertThat(돌아온사람.id()).isEqualTo(사람.id());
         assertThat(돌아온사람.epoch()).isEqualTo(사람.epoch() + 1);
@@ -179,7 +179,7 @@ class MeTest {
     @Test
     @DisplayName("두 번 눌러도 탈퇴한 때가 안 밀린다 - 밀리면 30일이 그때부터 다시 센다")
     void 두_번_탈퇴() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
         String 쿠키 = 쿠키(사람.id(), 사람.epoch());
 
         assertThat(탈퇴하기(쿠키).statusCode()).isEqualTo(204);
@@ -205,11 +205,11 @@ class MeTest {
     @Test
     @DisplayName("CSRF 토큰 없이 탈퇴하면 거절한다 - 남의 쪽에서 내 쿠키로 계정을 못 지운다")
     void 토큰_없이_탈퇴() throws Exception {
-        AppUserStore.로그인한사람 사람 = 창고.로그인("구글-sub-1");
+        AppUserStore.로그인한사람 사람 = 저장소.로그인("구글-sub-1");
         String 쿠키 = 쿠키(사람.id(), 사람.epoch());
 
         HttpResponse<String> 답 =
-                손님.send(
+                http.send(
                         HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/me"))
                                 .header("Cookie", 쿠키)
                                 .method("DELETE", HttpRequest.BodyPublishers.noBody())
@@ -223,7 +223,7 @@ class MeTest {
     /** 프런트가 할 일을 그대로 한다 - 토큰을 한 번 받아 머리글과 쿠키에 같이 싣는다. */
     private HttpResponse<String> 탈퇴하기(String 쿠키) throws Exception {
         String csrf = csrf받기(쿠키);
-        return 손님.send(
+        return http.send(
                 HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/me"))
                         .header("Cookie", (쿠키 == null ? "" : 쿠키 + "; ") + "XSRF-TOKEN=" + csrf)
                         .header("X-XSRF-TOKEN", csrf)

@@ -3,7 +3,7 @@ package com.nakyung.janggi.common.guard;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 문지기의 숫자.
+ * 요청 제한의 숫자.
  *
  * @param limitPerMinute 1분에 받는 최대 건수. 실제 쓰임은 한 시간에 한 건꼴이라 한참
  *     여유가 있고, 사람이 갑자기 몰려도 버티는 선으로 잡았다. 무료 한도(한 달 180,000

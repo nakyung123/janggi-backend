@@ -15,7 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p><b>스프링은 JSON 본문의 크기를 막아 주지 않는다.</b> 설정 목록을 직접 확인했다 -
  * {@code server.max-http-post-size} 와 {@code server.tomcat.max-http-post-size} 는
  * 둘 다 폐기됐고, 살아 있는 {@code server.tomcat.max-http-form-post-size} 는 이름대로
- * <b>폼 데이터에만</b> 걸린다. 그래서 지금 이 문지기가 없으면 누가 100MB JSON 을 보내도
+ * <b>폼 데이터에만</b> 걸린다. 그래서 지금 이 요청 제한이 없으면 누가 100MB JSON 을 보내도
  * 톰캣이 다 받아서 잭슨이 다 파싱한다. 공개 주소에서는 그게 곧 요금이다.
  *
  * <p><b>길이를 안 알려주면 받지 않는다.</b> 길이를 모르는 요청(chunked)은 다 읽어 봐야

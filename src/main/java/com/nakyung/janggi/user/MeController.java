@@ -26,11 +26,11 @@ public class MeController {
 
     private static final 나 아니오 = new 나(false);
 
-    private final AppUserStore 창고;
+    private final AppUserStore 저장소;
     private final TokenIssuer 토큰;
 
-    MeController(AppUserStore 창고, TokenIssuer 토큰) {
-        this.창고 = 창고;
+    MeController(AppUserStore 저장소, TokenIssuer 토큰) {
+        this.저장소 = 저장소;
         this.토큰 = 토큰;
     }
 
@@ -47,7 +47,7 @@ public class MeController {
         if (나 == null) {
             return 아니오;
         }
-        return new 나(창고.살아있나(나.userId(), 나.epoch()));
+        return new 나(저장소.살아있나(나.userId(), 나.epoch()));
     }
 
     /**
@@ -65,7 +65,7 @@ public class MeController {
      */
     @DeleteMapping("/me")
     ResponseEntity<Void> 탈퇴(@AuthenticationPrincipal Caller 나, HttpServletResponse 답) {
-        if (!창고.탈퇴(나.userId(), 나.epoch())) {
+        if (!저장소.탈퇴(나.userId(), 나.epoch())) {
             return ResponseEntity.notFound().build();
         }
         // 로그아웃과 같은 자리를 쓴다. XSRF-TOKEN 은 자격 증명이 아니라 그대로 둔다.

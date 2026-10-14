@@ -20,7 +20,7 @@ import jakarta.validation.constraints.Size;
  * 복기에는 없어서 물음표를 붙인다" 고 적혀 있으니, 이미 한 번 는 자리다.
  *
  * <p><b>그래도 통째로 믿지는 않는다.</b> 열 개수와 꼭 있어야 하는 칸은 본다
- * ({@code GameStore} 가 확인한다). 그리고 본문 전체 크기는 문지기가 막는다 - 한도가
+ * ({@code GameStore} 가 확인한다). 그리고 본문 전체 크기는 요청 제한이 막는다 - 한도가
  * 없으면 10MB 를 500번 올려 1GB 짜리 무료 저장을 채울 수 있다.
  */
 public record GameUpload(

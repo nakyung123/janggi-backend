@@ -31,15 +31,15 @@ import org.springframework.web.bind.annotation.RestController;
         properties = "janggi.guard.limit-per-minute=1000")
 class PublicPathsTest {
 
-    /** 울타리의 permitAll 목록에 없는 주소. 아래 검사용 컨트롤러가 이 자리를 맡는다. */
+    /** 보안 설정의 permitAll 목록에 없는 주소. 아래 검사용 컨트롤러가 이 자리를 맡는다. */
     private static final String 안적힌길 = "/test-unlisted";
 
     @LocalServerPort int port;
 
-    private final HttpClient 손님 = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newHttpClient();
 
     private HttpResponse<String> 가져오기(String 길) throws Exception {
-        return 손님.send(
+        return http.send(
                 HttpRequest.newBuilder(URI.create("http://localhost:" + port + 길)).build(),
                 HttpResponse.BodyHandlers.ofString());
     }
@@ -58,7 +58,7 @@ class PublicPathsTest {
                 {"events":[{"name":"app_open","sid":"opentest","env":"test","at":1760000000000}]}
                 """;
         HttpResponse<String> 답 =
-                손님.send(
+                http.send(
                         HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/events"))
                                 .header("Content-Type", "application/json")
                                 .POST(HttpRequest.BodyPublishers.ofString(본문))
@@ -71,7 +71,7 @@ class PublicPathsTest {
     @Test
     @DisplayName("통계는 여전히 토큰이 맡는다 - 보안이 가로채 403 으로 바꾸지 않는다")
     void 통계는_토큰이_맡는다() throws Exception {
-        // 토큰을 안 걸어 두면 TokenFilter 가 404 를 낸다. 403 이 나오면 보안 울타리가
+        // 토큰을 안 걸어 두면 TokenFilter 가 404 를 낸다. 403 이 나오면 보안 설정이
         // 먼저 거절한 것이고, 그러면 **없는 주소인 척하기**가 깨진다 - 토큰으로 막는
         // 주소는 있다는 사실조차 알려 주지 않는 것이 요점이었다.
         assertThat(가져오기("/stats").statusCode()).isEqualTo(404);
@@ -88,14 +88,14 @@ class PublicPathsTest {
         // 두면 이름과 다른 것을 보게 된다. 단수형을 고른 까닭은 **있을 법한 오타**라서다.
         // 한글 주소는 쓰지 않는다 - URI.create 가 ASCII 가 아닌 글자에서 터진다.
         //
-        // **이 단정으로는 울타리가 일하는지 알 수 없다.** 다룰 자리가 없으면 막든 열든
+        // **이 단정으로는 보안 설정이 일하는지 알 수 없다.** 다룰 자리가 없으면 막든 열든
         // 스프링이 404 를 낸다. 재 봤다 - denyAll 을 permitAll 로 바꾸고 전체를 돌렸는데
         // 하나도 안 깨졌다. 그래서 아래 검사를 따로 둔다.
         assertThat(가져오기("/game").statusCode()).isEqualTo(404);
     }
 
     /**
-     * 울타리에 안 적힌 주소를 <b>검사에서만</b> 하나 만든다.
+     * 보안 설정에 안 적힌 주소를 <b>검사에서만</b> 하나 만든다.
      *
      * <p>이것이 없으면 {@code anyRequest().denyAll()} 가지를 아무도 안 본다. 기본값이
      * "막는다" 에서 "연다" 로 바뀌면 <b>앞으로 더하는 주소가 전부 열린 채로 나간다</b> -
@@ -112,7 +112,7 @@ class PublicPathsTest {
     }
 
     @Test
-    @DisplayName("울타리에 안 적힌 주소는 다룰 자리가 있어도 404 - 기본값이 '막는다' 여야 한다")
+    @DisplayName("보안 설정에 안 적힌 주소는 다룰 자리가 있어도 404 - 기본값이 '막는다' 여야 한다")
     void 안_적힌_주소() throws Exception {
         assertThat(가져오기(안적힌길).statusCode()).isEqualTo(404);
     }

@@ -71,7 +71,7 @@ class ProtectedPathsTest {
      * 주소 한 줄.
      *
      * @param 방법 HTTP 메서드
-     * @param 패턴 스프링이 아는 모양. 열거와 맞추는 열쇠다
+     * @param 패턴 스프링이 아는 모양. 열거와 맞출 때 쓰는 이름이다
      * @param 길 실제로 부를 주소. 판번호 자리는 올려 둔 기보 번호로 바뀐다
      * @param 본문 쓰기면 올릴 것, 읽기면 null
      * @param 보호됨 로그인해야 열리나
@@ -87,8 +87,8 @@ class ProtectedPathsTest {
             int 쿠키없음,
             int 낡은쿠키) {
 
-        /** 열거와 맞추는 열쇠. */
-        String 열쇠() {
+        /** 열거와 맞출 때 쓰는 이름. 예: {@code GET /games}. */
+        String 주소() {
             return 방법 + " " + 패턴;
         }
     }
@@ -121,11 +121,11 @@ class ProtectedPathsTest {
     RequestMappingHandlerMapping 매핑;
 
     @Autowired TokenIssuer 토큰;
-    @Autowired AppUserStore 사용자창고;
+    @Autowired AppUserStore 사용자저장소;
     @Autowired JdbcClient sql;
     @Autowired ObjectMapper 젝슨;
 
-    private final HttpClient 손님 = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newHttpClient();
 
     private String 내쿠키;
     private String 낡은쿠키;
@@ -145,7 +145,7 @@ class ProtectedPathsTest {
     private void 새로시작() {
         sql.sql("DELETE FROM game").update();
         sql.sql("DELETE FROM app_user").update();
-        AppUserStore.로그인한사람 나 = 사용자창고.로그인("구글-sub-보호검사");
+        AppUserStore.로그인한사람 나 = 사용자저장소.로그인("구글-sub-보호검사");
         내쿠키 = 쿠키(나.id(), 나.epoch());
         // **서명은 맞고 세대만 안 맞는 쿠키.** 탈퇴하고 되살리면 세대가 올라가서 전에 내준
         // 쿠키가 이 꼴이 된다. DB 를 건드려 흉내 내면 지금 쓰는 쿠키까지 같이 낡으므로
@@ -157,7 +157,7 @@ class ProtectedPathsTest {
     @DisplayName("스프링이 아는 주소와 표가 한 줄도 어긋나지 않는다 - 손으로 적은 목록은 틀어진다")
     void 열거() {
         assertThat(스프링이아는주소())
-                .containsExactlyInAnyOrderElementsOf(표.stream().map(줄::열쇠).toList());
+                .containsExactlyInAnyOrderElementsOf(표.stream().map(줄::주소).toList());
     }
 
     @Test
@@ -169,15 +169,15 @@ class ProtectedPathsTest {
             String 길 = 그줄.길().replace(판자리, String.valueOf(판));
 
             assertThat(보내기(그줄.방법(), 길, 그줄.본문(), null).statusCode())
-                    .as("%s 를 쿠키 없이", 그줄.열쇠())
+                    .as("%s 를 쿠키 없이", 그줄.주소())
                     .isEqualTo(그줄.쿠키없음());
             assertThat(보내기(그줄.방법(), 길, 그줄.본문(), 낡은쿠키).statusCode())
-                    .as("%s 를 세대가 안 맞는 쿠키로", 그줄.열쇠())
+                    .as("%s 를 세대가 안 맞는 쿠키로", 그줄.주소())
                     .isEqualTo(그줄.낡은쿠키());
             // **이 줄이 앞의 둘에 이를 준다.** 주소를 오타로 적었으면 제대로 된 쿠키로도
             // 404 가 나고, 앞의 두 단정은 "없는 주소라서 404" 를 보고 통과한 것이 된다.
             assertThat(보내기(그줄.방법(), 길, 그줄.본문(), 내쿠키).statusCode())
-                    .as("%s 를 제대로 된 쿠키로 - 여기서 404 면 주소가 틀린 것이다", 그줄.열쇠())
+                    .as("%s 를 제대로 된 쿠키로 - 여기서 404 면 주소가 틀린 것이다", 그줄.주소())
                     .isNotEqualTo(404);
         }
     }
@@ -228,7 +228,7 @@ class ProtectedPathsTest {
         if (쿠키 != null) {
             b.header("Cookie", 쿠키);
         }
-        HttpResponse<String> 답 = 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> 답 = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
         return 답.headers().allValues("Set-Cookie").stream()
                 .filter(c -> c.startsWith("XSRF-TOKEN="))
                 .map(c -> c.substring("XSRF-TOKEN=".length(), c.indexOf(';')))
@@ -256,7 +256,7 @@ class ProtectedPathsTest {
                 본문 == null
                         ? HttpRequest.BodyPublishers.noBody()
                         : HttpRequest.BodyPublishers.ofString(본문));
-        return 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private static String 측정본문() {

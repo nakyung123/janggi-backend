@@ -54,11 +54,11 @@ class GameApiTest {
     @LocalServerPort int port;
 
     @Autowired TokenIssuer 토큰;
-    @Autowired AppUserStore 사용자창고;
+    @Autowired AppUserStore 사용자저장소;
     @Autowired JdbcClient sql;
     @Autowired ObjectMapper 젝슨;
 
-    private final HttpClient 손님 = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newHttpClient();
 
     private String 내쿠키;
     private long 내번호;
@@ -68,7 +68,7 @@ class GameApiTest {
     void 비우기() {
         sql.sql("DELETE FROM game").update();
         sql.sql("DELETE FROM app_user").update();
-        AppUserStore.로그인한사람 나 = 사용자창고.로그인("구글-sub-나");
+        AppUserStore.로그인한사람 나 = 사용자저장소.로그인("구글-sub-나");
         내번호 = 나.id();
         내쿠키 = 쿠키(나);
         내csrf = csrf받기(내쿠키);
@@ -83,7 +83,7 @@ class GameApiTest {
     private String csrf받기(String 쿠키) {
         try {
             HttpResponse<String> 답 =
-                    손님.send(
+                    http.send(
                             HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/me"))
                                     .header("Cookie", 쿠키)
                                     .build(),
@@ -162,7 +162,7 @@ class GameApiTest {
                 본문 == null
                         ? HttpRequest.BodyPublishers.noBody()
                         : HttpRequest.BodyPublishers.ofString(본문));
-        return 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private JsonNode 나무(String 글) {
@@ -232,7 +232,7 @@ class GameApiTest {
     void 남의_기보() throws Exception {
         long 내것 = 나무(보내기("/games", "POST", 올릴것("판-1", 3, false), 내쿠키).body()).path("id").asLong();
 
-        AppUserStore.로그인한사람 남 = 사용자창고.로그인("구글-sub-남");
+        AppUserStore.로그인한사람 남 = 사용자저장소.로그인("구글-sub-남");
         String 남의쿠키 = 쿠키(남);
 
         assertThat(보내기("/games/" + 내것, "GET", null, 남의쿠키).statusCode()).isEqualTo(404);
@@ -267,7 +267,7 @@ class GameApiTest {
 
         // 탈퇴하고 되살리면 세대가 올라간다.
         sql.sql("UPDATE app_user SET deleted_at = now() WHERE id = :id").param("id", 내번호).update();
-        사용자창고.로그인("구글-sub-나");
+        사용자저장소.로그인("구글-sub-나");
 
         assertThat(보내기("/games", "GET", null, 내쿠키).body()).isEqualTo("[]");
         assertThat(보내기("/games/" + 내것, "GET", null, 내쿠키).statusCode()).isEqualTo(404);
@@ -327,7 +327,7 @@ class GameApiTest {
         //
         // 응답 쪽은 사실 **GameSummary 의 모양이 막고 있다** - 그 레코드에 내용 칸이
         // 없으니 SELECT * 로 고쳐도 실려 나갈 자리가 없다. 이 검사는 그 모양이 바뀌는
-        // 날을 위한 울타리다.
+        // 날을 위한 보안 설정다.
         // **`"fen"` 과 `lastFen` 을 가려서 본다.** 금지하는 것은 국면 목록이 통째로
         // 실려 오는 것이고, 요약의 마지막 국면 한 칸은 와야 한다. 따옴표까지 넣어 찾지
         // 않으면 `lastFen` 때문에 이 단정이 늘 참이 되거나 늘 거짓이 된다.
@@ -371,7 +371,7 @@ class GameApiTest {
 
     /** gzip 으로 받겠다고 말하고 바이트 그대로 받는다. */
     private HttpResponse<byte[]> 눌러서받기(String 길) throws Exception {
-        return 손님.send(
+        return http.send(
                 HttpRequest.newBuilder(URI.create("http://localhost:" + port + 길))
                         .header("Cookie", 내쿠키 + "; XSRF-TOKEN=" + 내csrf)
                         .header("Accept-Encoding", "gzip")

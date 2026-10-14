@@ -27,15 +27,15 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private static final Logger log = LoggerFactory.getLogger(LoginSuccessHandler.class);
 
-    private final AppUserStore 창고;
+    private final AppUserStore 저장소;
     private final TokenIssuer 토큰;
     private final String 돌아갈곳;
 
     LoginSuccessHandler(
-            AppUserStore 창고,
+            AppUserStore 저장소,
             TokenIssuer 토큰,
             @Value("${janggi.login.redirect:/}") String 돌아갈곳) {
-        this.창고 = 창고;
+        this.저장소 = 저장소;
         this.토큰 = 토큰;
         this.돌아갈곳 = 돌아갈곳;
     }
@@ -45,7 +45,7 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
             HttpServletRequest 요청, HttpServletResponse 답, Authentication 인증)
             throws IOException {
         String sub = 구글번호(인증);
-        AppUserStore.로그인한사람 사람 = 창고.로그인(sub);
+        AppUserStore.로그인한사람 사람 = 저장소.로그인(sub);
         토큰.심기(답, 사람.id(), 사람.epoch());
 
         // **구글 번호도 이메일도 적지 않는다.** 로그에 남으면 DB 에 안 둔 뜻이 없어진다.

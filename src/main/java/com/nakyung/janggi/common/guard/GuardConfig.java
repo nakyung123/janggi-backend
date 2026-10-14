@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 
 /**
- * 문지기를 어느 입구에 어떤 순서로 세울지 정한다.
+ * 요청 제한을 어느 입구에 어떤 순서로 세울지 정한다.
  *
  * <p><b>{@code /events} 에만 세운다.</b> {@code @Component} 로 올리면 모든 주소에 걸려서
  * Cloud Run 의 상태 확인({@code /actuator/health})까지 한도에 걸린다. 그러면 몰아치는
@@ -110,7 +110,7 @@ public class GuardConfig {
     /**
      * 기보 하나의 크기 한도. <b>측정보다 훨씬 크다</b> - 한 판이 4만 자쯤이다.
      *
-     * <p>이 문지기가 없으면 올리는 주소에 <b>상한이 아예 없다.</b> 국면 개수는
+     * <p>이 요청 제한이 없으면 올리는 주소에 <b>상한이 아예 없다.</b> 국면 개수는
      * {@code GameStore} 가 세지만, 그건 본문을 이미 다 읽어 들인 뒤의 일이다. 메모리로
      * 들어오기 전에 끊는 자리가 따로 있어야 한다.
      */

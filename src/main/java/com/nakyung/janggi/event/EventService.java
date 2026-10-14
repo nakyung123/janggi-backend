@@ -52,11 +52,11 @@ public class EventService {
     private static final Logger eventLog = LoggerFactory.getLogger("janggi.events.record");
 
     private final ObjectMapper mapper;
-    private final EventStore 창고;
+    private final EventStore 저장소;
 
-    public EventService(ObjectMapper mapper, EventStore 창고) {
+    public EventService(ObjectMapper mapper, EventStore 저장소) {
         this.mapper = mapper;
-        this.창고 = 창고;
+        this.저장소 = 저장소;
     }
 
     /**
@@ -82,7 +82,7 @@ public class EventService {
     }
 
     /**
-     * 창고에 넘긴다. <b>실패를 삼키되 조용히는 아니다.</b>
+     * 저장소에 넘긴다. <b>실패를 삼키되 조용히는 아니다.</b>
      *
      * <p>기록은 바로 위에서 이미 로그에 적혔다. 쌓는 데 실패했다고 요청을 깨뜨리면
      * 얻는 것 없이 "서비스가 고장났다" 는 신호만 남는다 - 브라우저는 답을 읽지도 않는다.
@@ -91,7 +91,7 @@ public class EventService {
      */
     private void 넣기(List<EventRequest> events, Instant receivedAt) {
         try {
-            창고.넣기(events, receivedAt);
+            저장소.넣기(events, receivedAt);
         } catch (RuntimeException ex) {
             log.warn(
                     "쌓지 못했습니다. 로그에는 남아 있습니다. {}건 sid={}",

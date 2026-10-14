@@ -24,7 +24,7 @@ import org.springframework.util.StringUtils;
  *
  * <p><b>열쇠는 환경 변수로만 들어온다</b>({@code JANGGI_TOKEN_SECRET}). 코드에 박지
  * 않고, 비어 있으면 <b>서버가 아예 뜨지 않는다</b> - 깜빡했을 때 "서명 없이 그냥
- * 통과" 가 되면 울타리가 있는 척만 하게 된다.
+ * 통과" 가 되면 막고 있는 척만 하게 된다.
  */
 @Component
 public class Signer {

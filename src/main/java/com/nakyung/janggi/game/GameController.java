@@ -34,10 +34,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/games")
 public class GameController {
 
-    private final GameStore 창고;
+    private final GameStore 저장소;
 
-    GameController(GameStore 창고) {
-        this.창고 = 창고;
+    GameController(GameStore 저장소) {
+        this.저장소 = 저장소;
     }
 
     /** 올린 기보의 서버 번호. 브라우저가 이걸로 하나를 열거나 지운다. */
@@ -46,13 +46,13 @@ public class GameController {
     @PostMapping
     올린결과 올리기(@AuthenticationPrincipal Caller 나, @Valid @RequestBody GameUpload 올릴것) {
         확인(나);
-        return new 올린결과(창고.올리기(나.userId(), 나.epoch(), 올릴것));
+        return new 올린결과(저장소.올리기(나.userId(), 나.epoch(), 올릴것));
     }
 
     @GetMapping
     List<GameSummary> 목록(@AuthenticationPrincipal Caller 나) {
         확인(나);
-        return 창고.목록(나.userId(), 나.epoch());
+        return 저장소.목록(나.userId(), 나.epoch());
     }
 
     /**
@@ -64,7 +64,7 @@ public class GameController {
     @GetMapping("/{id}")
     ResponseEntity<GameDetail> 하나(@AuthenticationPrincipal Caller 나, @PathVariable long id) {
         확인(나);
-        return 창고.하나(나.userId(), 나.epoch(), id)
+        return 저장소.하나(나.userId(), 나.epoch(), id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -73,7 +73,7 @@ public class GameController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void 지우기(@AuthenticationPrincipal Caller 나, @PathVariable long id) {
         확인(나);
-        if (!창고.지우기(나.userId(), 나.epoch(), id)) {
+        if (!저장소.지우기(나.userId(), 나.epoch(), id)) {
             throw new 없음();
         }
     }

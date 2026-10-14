@@ -33,7 +33,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * 셋이라 셋을 따로 본다.
  *
  * <ul>
- *   <li><b>본문 크기</b> - 문지기가 읽어 들이기 전에 끊는다
+ *   <li><b>본문 크기</b> - 요청 제한이 읽어 들이기 전에 끊는다
  *   <li><b>국면 개수</b> - 본문은 작아도 국면이 10만 개일 수 있다
  *   <li><b>판 수</b> - 한 사람이 서버에 둘 수 있는 판
  * </ul>
@@ -67,11 +67,11 @@ class GameLimitsTest {
     @LocalServerPort int port;
 
     @Autowired TokenIssuer 토큰;
-    @Autowired AppUserStore 사용자창고;
+    @Autowired AppUserStore 사용자저장소;
     @Autowired JdbcClient sql;
     @Autowired javax.sql.DataSource 연결통;
 
-    private final HttpClient 손님 = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newHttpClient();
     private String 내쿠키;
     private String 내csrf;
     private long 내id;
@@ -80,7 +80,7 @@ class GameLimitsTest {
     void 비우기() {
         sql.sql("DELETE FROM game").update();
         sql.sql("DELETE FROM app_user").update();
-        AppUserStore.로그인한사람 나 = 사용자창고.로그인("구글-sub-나");
+        AppUserStore.로그인한사람 나 = 사용자저장소.로그인("구글-sub-나");
         내id = 나.id();
         MockHttpServletResponse 받아둘곳 = new MockHttpServletResponse();
         토큰.심기(받아둘곳, 나.id(), 나.epoch());
@@ -91,7 +91,7 @@ class GameLimitsTest {
     private String csrf받기() {
         try {
             HttpResponse<String> 답 =
-                    손님.send(
+                    http.send(
                             HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/me"))
                                     .header("Cookie", 내쿠키)
                                     .build(),
@@ -129,7 +129,7 @@ class GameLimitsTest {
      * 그때 검사가 매달려 있지 않고 터지게 하려는 것이다.
      */
     private HttpResponse<String> 올리기(String 본문) throws Exception {
-        return 손님.send(
+        return http.send(
                 HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/games"))
                         .timeout(Duration.ofSeconds(3))
                         .header("Cookie", 내쿠키 + "; XSRF-TOKEN=" + 내csrf)
@@ -170,7 +170,7 @@ class GameLimitsTest {
                         .formatted(국면);
 
         HttpResponse<String> 답 =
-                손님.send(
+                http.send(
                         HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/games"))
                                 .header("Cookie", 내쿠키 + "; XSRF-TOKEN=" + 내csrf)
                                 .header("X-XSRF-TOKEN", 내csrf)

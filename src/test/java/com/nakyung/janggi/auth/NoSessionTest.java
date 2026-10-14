@@ -69,16 +69,16 @@ class NoSessionTest {
         }
 
         /**
-         * 대조군 주소만 여는 울타리.
+         * 대조군 주소만 여는 보안 설정.
          *
-         * <p><b>진짜 울타리는 건드리지 않는다.</b> 거기는 적어 두지 않은 주소를 전부
+         * <p><b>진짜 보안 설정은 건드리지 않는다.</b> 거기는 적어 두지 않은 주소를 전부
          * 막으므로(처음에 이 대조군도 404 가 났다) 이 한 주소만 따로 열어 준다.
          * {@code @Order(1)} 이라 이 주소에는 이 사슬이 먼저 걸리고, 나머지는 전부 진짜
-         * 울타리가 그대로 맡는다 - 아래 검사들이 보려는 것이 그 진짜 울타리다.
+         * 보안 설정이 그대로 맡는다 - 아래 검사들이 보려는 것이 그 진짜 보안 설정다.
          */
         @Bean
         @org.springframework.core.annotation.Order(1)
-        SecurityFilterChain 대조군_울타리(HttpSecurity http) throws Exception {
+        SecurityFilterChain 대조군_보안설정(HttpSecurity http) throws Exception {
             return http.securityMatcher("/테스트-세션-만들기")
                     .authorizeHttpRequests(길 -> 길.anyRequest().permitAll())
                     .csrf(csrf -> csrf.disable())
@@ -97,7 +97,7 @@ class NoSessionTest {
 
     @LocalServerPort int port;
 
-    private final HttpClient 손님 = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newHttpClient();
 
     @BeforeEach
     void 세기전() {
@@ -110,7 +110,7 @@ class NoSessionTest {
         if (쿠키 != null) {
             b.header("Cookie", 쿠키);
         }
-        return 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
+        return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     @Test
