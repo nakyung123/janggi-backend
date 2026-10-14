@@ -6,6 +6,10 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.util.StringUtils;
 
 /**
  * 요청 제한을 어느 입구에 어떤 순서로 세울지 정한다.
@@ -33,6 +37,47 @@ public class GuardConfig {
     private static final String GAMES = "/games";
 
     private static final String GAMES_ALL = "/games/*";
+
+    /** 되돌릴 틈이 지난 계정을 치우는 자리. Cloud Scheduler 만 부른다. */
+    private static final String PURGE = "/internal/purge";
+
+    /**
+     * 계정을 치우는 주소를 막는다. <b>구글이 만든 토큰만 들여보낸다.</b>
+     *
+     * <p><b>설정이 하나라도 비면 아무도 못 들어온다.</b> {@link #statsToken} 과 같은
+     * 규칙이고, 여기는 더 그렇다 - 열린 채로 나가면 아무나 남의 계정을 지운다.
+     *
+     * <p>{@code jwks-uri} 를 설정으로 둔 까닭은 <b>검사 때문</b>이다. 검사가 진짜 구글을
+     * 부를 수는 없으니, 검사에서는 그 자리에 가짜 구글을 띄워 가리킨다.
+     */
+    @Bean
+    FilterRegistrationBean<GoogleTokenFilter> purgeCaller(
+            @Value("${janggi.purge.jwks-uri:}") String jwksUri,
+            @Value("${janggi.purge.issuer:https://accounts.google.com}") String issuer,
+            @Value("${janggi.purge.audience:}") String audience,
+            @Value("${janggi.purge.caller:}") String caller) {
+        FilterRegistrationBean<GoogleTokenFilter> bean =
+                new FilterRegistrationBean<>(
+                        new GoogleTokenFilter(검사기(jwksUri, issuer), audience, caller));
+        bean.addUrlPatterns(PURGE);
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+        return bean;
+    }
+
+    /**
+     * 토큰을 확인할 도구. 주소가 비어 있으면 {@code null} 이고, 그러면 아무도 못 들어온다.
+     *
+     * <p><b>열쇠를 미리 받아 두지 않는다.</b> {@code NimbusJwtDecoder} 는 처음 쓸 때
+     * 가져온다 - 뜰 때 구글을 부르면 구글이 느린 날 서버가 아예 안 뜬다.
+     */
+    private static JwtDecoder 검사기(String jwksUri, String issuer) {
+        if (!StringUtils.hasText(jwksUri)) {
+            return null;
+        }
+        NimbusJwtDecoder 것 = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
+        것.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
+        return 것;
+    }
 
     @Bean
     FilterRegistrationBean<RateLimitFilter> rateLimit(GuardProperties props) {

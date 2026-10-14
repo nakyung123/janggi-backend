@@ -112,6 +112,13 @@ public class SecurityConfig {
                                                 "/me",
                                                 "/actuator/health",
                                                 "/actuator/health/**",
+                                                // 계정을 치우는 자리. 사람이 부르는
+                                                // 곳이 아니고, 들어오는 길목에서
+                                                // GoogleTokenFilter 가 구글이 만든
+                                                // 토큰을 확인한다. 여기 안 적으면
+                                                // 아래 denyAll 이 먼저 걸려 Cloud
+                                                // Scheduler 도 못 들어온다.
+                                                "/internal/purge",
                                                 // 스프링이 오류를 여기로 한 번 더 보낸다.
                                                 // 빼 두면 400 이 403 으로 바뀌어 나간다.
                                                 "/error")
@@ -139,7 +146,12 @@ public class SecurityConfig {
                                         // 없는 자리에서 치르는 값이었다.
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
-                                        .ignoringRequestMatchers("/events"))
+                                        // 계정을 치우는 자리도 뺀다. Cloud Scheduler
+                                        // 는 브라우저가 아니라 토큰을 실을 자리가
+                                        // 없다. 그래도 괜찮은 까닭은 그 주소가 쿠키를
+                                        // 보지 않기 때문이다 - 남의 브라우저를 빌려
+                                        // 보내도 구글이 만든 토큰이 없으면 못 들어온다.
+                                        .ignoringRequestMatchers("/events", "/internal/purge"))
                 .sessionManagement(
                          세션 -> 세션.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(c -> c.securityContextRepository(new NullSecurityContextRepository()))

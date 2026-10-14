@@ -109,6 +109,10 @@ class ProtectedPathsTest {
                     new 줄("GET", "/stats", "/stats", null, false, 404, 404),
                     new 줄("GET", "/me", "/me", null, false, 200, 200),
                     new 줄("DELETE", "/me", "/me", null, true, 404, 404),
+                    // **쿠키로 막는 주소가 아니다.** 사람이 부르는 자리가 아니라 Cloud
+                    // Scheduler 가 부르는 곳이고, 구글이 만든 토큰으로 막는다. 여기서
+                    // 쿠키 세 가지를 보는 것은 뜻이 없어서 PurgeTest 가 따로 맡는다.
+                    new 줄("POST", "/internal/purge", "/internal/purge", null, false, 404, 404),
                     new 줄("POST", "/games", "/games", 기보본문("판-새것"), true, 404, 400),
                     new 줄("GET", "/games", "/games", null, true, 404, 200),
                     new 줄("GET", "/games/{id}", "/games/" + 판자리, null, true, 404, 404),
