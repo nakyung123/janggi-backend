@@ -81,6 +81,39 @@ public class AppUserStore {
                 .single();
     }
 
+    /**
+     * 탈퇴. <b>줄을 지우지 않고 {@code deleted_at} 만 찍는다.</b>
+     *
+     * <p>실수로 눌렀을 때 30일 안에 다시 로그인하면 기보가 그대로 돌아온다. 실제로
+     * 지우는 것은 {@code /internal/purge} 다.
+     *
+     * <p><b>{@code token_epoch} 을 올리지 않는다.</b> 올리고 싶어지지만, 들어오는 길의
+     * 모든 질의가 이미 {@code deleted_at IS NULL} 을 보고 있어서 찍는 순간 옛 쿠키는
+     * 아무것도 못 한다. 여기서 올리면 되살릴 때 또 올라가서 <b>한 번 탈퇴에 세대가 둘씩
+     * 뛴다.</b>
+     *
+     * <p>조건에 {@code deleted_at IS NULL} 과 {@code token_epoch} 을 같이 두는 까닭은
+     * <b>두 번 눌렀을 때 때를 덮어쓰지 않으려는 것</b>이다. 덮어쓰면 30일이 그때부터
+     * 다시 센다.
+     *
+     * @return 이번에 찍었으면 {@code true}. 이미 탈퇴했거나 쿠키가 낡았으면 {@code false}
+     */
+    @Transactional
+    public boolean 탈퇴(long id, int epoch) {
+        return db.sql(
+                        """
+                        UPDATE app_user
+                           SET deleted_at = now()
+                         WHERE id = :id
+                           AND deleted_at IS NULL
+                           AND token_epoch = :epoch
+                        """)
+                        .param("id", id)
+                        .param("epoch", epoch)
+                        .update()
+                == 1;
+    }
+
     @Transactional
     public 로그인한사람 로그인(String googleSub) {
         // ① 되돌릴 틈이 지난 것을 치운다. 기보도 CASCADE 로 같이 간다.

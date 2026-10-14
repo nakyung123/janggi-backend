@@ -1,7 +1,11 @@
 package com.nakyung.janggi.user;
 
 import com.nakyung.janggi.auth.Caller;
+import com.nakyung.janggi.auth.TokenIssuer;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,9 +27,11 @@ public class MeController {
     private static final 나 아니오 = new 나(false);
 
     private final AppUserStore 창고;
+    private final TokenIssuer 토큰;
 
-    MeController(AppUserStore 창고) {
+    MeController(AppUserStore 창고, TokenIssuer 토큰) {
         this.창고 = 창고;
+        this.토큰 = 토큰;
     }
 
     /**
@@ -42,5 +48,28 @@ public class MeController {
             return 아니오;
         }
         return new 나(창고.살아있나(나.userId(), 나.epoch()));
+    }
+
+    /**
+     * 탈퇴.
+     *
+     * <p><b>줄을 바로 지우지 않는다.</b> 30일 안에 다시 로그인하면 기보가 돌아온다.
+     * 실제로 지우는 것은 {@code /internal/purge} 다.
+     *
+     * <p><b>이 주소는 로그인해야 열린다.</b> {@code GET} 쪽과 다른 자리이고, 보안 설정에
+     * ({@code SecurityConfig}) 메서드를 갈라 적어 두었다. 그래서 여기서 "쿠키가 없으면" 을 또 보지 않는다.
+     *
+     * <p><b>이미 탈퇴했거나 쿠키가 낡았으면 404 다.</b> 보안 설정은 쿠키의 서명만 보므로 그런
+     * 쿠키도 여기까지 온다. 403 으로 답하면 "그 계정이 있기는 하다" 를 알려 주는 셈이라,
+     * 기보 주소에서 쓴 판단을 그대로 따른다.
+     */
+    @DeleteMapping("/me")
+    ResponseEntity<Void> 탈퇴(@AuthenticationPrincipal Caller 나, HttpServletResponse 답) {
+        if (!창고.탈퇴(나.userId(), 나.epoch())) {
+            return ResponseEntity.notFound().build();
+        }
+        // 로그아웃과 같은 자리를 쓴다. XSRF-TOKEN 은 자격 증명이 아니라 그대로 둔다.
+        토큰.지우기(답);
+        return ResponseEntity.noContent().build();
     }
 }

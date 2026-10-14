@@ -108,6 +108,7 @@ class ProtectedPathsTest {
                     new 줄("POST", "/events", "/events", 측정본문(), false, 204, 204),
                     new 줄("GET", "/stats", "/stats", null, false, 404, 404),
                     new 줄("GET", "/me", "/me", null, false, 200, 200),
+                    new 줄("DELETE", "/me", "/me", null, true, 404, 404),
                     new 줄("POST", "/games", "/games", 기보본문("판-새것"), true, 404, 400),
                     new 줄("GET", "/games", "/games", null, true, 404, 200),
                     new 줄("GET", "/games/{id}", "/games/" + 판자리, null, true, 404, 404),
@@ -131,9 +132,20 @@ class ProtectedPathsTest {
 
     @BeforeEach
     void 비우기() {
+        새로시작();
+    }
+
+    /**
+     * 사람과 기보를 비우고 쿠키를 다시 만든다.
+     *
+     * <p><b>줄마다 부른다.</b> 제대로 된 쿠키로 {@code DELETE /me} 를 부르면 그 사람이
+     * 탈퇴해 버려서, 그다음 줄은 쿠키가 통하지 않는다. 표의 순서에 기대면 줄을 하나
+     * 옮기는 것만으로 조용히 깨진다.
+     */
+    private void 새로시작() {
         sql.sql("DELETE FROM game").update();
         sql.sql("DELETE FROM app_user").update();
-        AppUserStore.로그인한사람 나 = 사용자창고.로그인("구글-sub-울타리");
+        AppUserStore.로그인한사람 나 = 사용자창고.로그인("구글-sub-보호검사");
         내쿠키 = 쿠키(나.id(), 나.epoch());
         // **서명은 맞고 세대만 안 맞는 쿠키.** 탈퇴하고 되살리면 세대가 올라가서 전에 내준
         // 쿠키가 이 꼴이 된다. DB 를 건드려 흉내 내면 지금 쓰는 쿠키까지 같이 낡으므로
@@ -152,6 +164,7 @@ class ProtectedPathsTest {
     @DisplayName("로그인해야 열리는 주소는 쿠키 없이도 낡은 쿠키로도 막힌다")
     void 보호된주소() throws Exception {
         for (줄 그줄 : 표.stream().filter(줄::보호됨).toList()) {
+            새로시작();
             long 판 = 판하나();
             String 길 = 그줄.길().replace(판자리, String.valueOf(판));
 
@@ -208,14 +221,14 @@ class ProtectedPathsTest {
         return TokenIssuer.이름 + "=" + 받아둘곳.getCookie(TokenIssuer.이름).getValue();
     }
 
-    /** CSRF 토큰을 받아 온다. 쓰기에는 이것이 있어야 울타리를 지난다. */
+    /** CSRF 토큰을 받아 온다. 쿠키가 {@code null} 이면 로그인 안 한 채로 받는다. */
     private String csrf받기(String 쿠키) throws Exception {
-        HttpResponse<String> 답 =
-                손님.send(
-                        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/me"))
-                                .header("Cookie", 쿠키)
-                                .build(),
-                        HttpResponse.BodyHandlers.ofString());
+        HttpRequest.Builder b =
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/me"));
+        if (쿠키 != null) {
+            b.header("Cookie", 쿠키);
+        }
+        HttpResponse<String> 답 = 손님.send(b.build(), HttpResponse.BodyHandlers.ofString());
         return 답.headers().allValues("Set-Cookie").stream()
                 .filter(c -> c.startsWith("XSRF-TOKEN="))
                 .map(c -> c.substring("XSRF-TOKEN=".length(), c.indexOf(';')))
@@ -223,14 +236,18 @@ class ProtectedPathsTest {
                 .orElseThrow(() -> new IllegalStateException("CSRF 토큰이 안 왔습니다"));
     }
 
+    /**
+     * <b>쿠키가 없어도 CSRF 토큰은 싣는다.</b> 안 실으면 CSRF 필터가 먼저 거절해서,
+     * "쿠키 없이 404" 가 보안 설정이 낸 것인지 CSRF 가 낸 것인지 알 수 없다. 실제로
+     * 그랬다 - 보안 설정에서 줄을 통째로 빼 봤는데 검사가 하나도 안 깨졌다. CSRF 토큰은
+     * 로그인하지 않아도 받을 수 있으므로, 받아서 같이 보내면 보안 설정만 남는다.
+     */
     private HttpResponse<String> 보내기(String 방법, String 길, String 본문, String 쿠키)
             throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + 길));
-        if (쿠키 != null) {
-            String csrf = csrf받기(쿠키);
-            b.header("Cookie", 쿠키 + "; XSRF-TOKEN=" + csrf);
-            b.header("X-XSRF-TOKEN", csrf);
-        }
+        String csrf = csrf받기(쿠키);
+        b.header("X-XSRF-TOKEN", csrf);
+        b.header("Cookie", (쿠키 == null ? "" : 쿠키 + "; ") + "XSRF-TOKEN=" + csrf);
         if (본문 != null) {
             b.header("Content-Type", "application/json");
         }
@@ -244,7 +261,7 @@ class ProtectedPathsTest {
 
     private static String 측정본문() {
         return """
-               {"events":[{"name":"app_open","sid":"울타리","env":"test","at":1760000000000}]}""";
+               {"events":[{"name":"app_open","sid":"보호검사","env":"test","at":1760000000000}]}""";
     }
 
     private static String 기보본문(String 번호) {

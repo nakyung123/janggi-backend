@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -88,7 +89,16 @@ public class SecurityConfig {
             TokenIssuer 토큰) throws Exception {
         return http.authorizeHttpRequests(
                          길 ->
-                                길.requestMatchers(
+                                길
+                                        // **탈퇴는 로그인해야 열린다.** 아래 목록에
+                                        // /me 가 열려 있는데 그것은 "로그인했나" 를
+                                        // 묻는 자리라서다. 메서드를 안 가르면 지우는
+                                        // 쪽까지 같이 열린다. **이 줄이 먼저 와야
+                                        // 한다** - 뒤에 두면 permitAll 이 먼저 맞아
+                                        // 아무 일도 안 한다.
+                                        .requestMatchers(HttpMethod.DELETE, "/me")
+                                        .authenticated()
+                                        .requestMatchers(
                                                 "/events",
                                                 "/stats",
                                                 // 로그인 시작과 콜백. 스프링 필터가
