@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.nakyung.janggi.auth.TokenIssuer;
 import com.nakyung.janggi.user.AppUserStore;
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -338,6 +341,48 @@ class GameApiTest {
         // 통과시키지 않게 같이 본다.
         long 번호 = 나무(목록).get(0).path("id").asLong();
         assertThat(보내기("/games/" + 번호, "GET", null, 내쿠키).body()).contains("fen");
+    }
+
+    @Test
+    @DisplayName("긴 목록은 눌러서 보낸다 - 500판이면 141KB 가 34KB 로 간다")
+    void 목록_압축() throws Exception {
+        // 스무 판이면 요약만으로 2KB 문턱을 넘는다.
+        for (int i = 1; i <= 20; i++) {
+            보내기("/games", "POST", 올릴것("판-" + i, 20, false), 내쿠키);
+        }
+
+        HttpResponse<byte[]> 눌린것 = 눌러서받기("/games");
+        String 그냥 = 보내기("/games", "GET", null, 내쿠키).body();
+
+        assertThat(눌린것.headers().firstValue("Content-Encoding")).hasValue("gzip");
+        // **머리글만 보지 않는다.** 풀어서 같은 글이 나와야 진짜 gzip 이다. 자바
+        // HttpClient 는 스스로 풀지 않으니 여기서 푸는 것이 곧 증거다.
+        assertThat(풀기(눌린것.body())).isEqualTo(그냥);
+        assertThat(눌린것.body().length).isLessThan(그냥.length() / 2);
+
+        // **안 물어본 쪽은 그대로 온다.** 늘 누르면 안 쓰는 데서도 CPU 를 쓴다.
+        assertThat(보내기("/games", "GET", null, 내쿠키).headers().firstValue("Content-Encoding"))
+                .isEmpty();
+
+        // **짧은 답은 안 누른다.** 문턱이 일하는지 보는 자리다 - 이게 없으면 "전부
+        // 누른다" 와 구별되지 않는다.
+        assertThat(눌러서받기("/me").headers().firstValue("Content-Encoding")).isEmpty();
+    }
+
+    /** gzip 으로 받겠다고 말하고 바이트 그대로 받는다. */
+    private HttpResponse<byte[]> 눌러서받기(String 길) throws Exception {
+        return 손님.send(
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + 길))
+                        .header("Cookie", 내쿠키 + "; XSRF-TOKEN=" + 내csrf)
+                        .header("Accept-Encoding", "gzip")
+                        .build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+    }
+
+    private String 풀기(byte[] 눌린것) throws Exception {
+        try (GZIPInputStream 들어옴 = new GZIPInputStream(new ByteArrayInputStream(눌린것))) {
+            return new String(들어옴.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     @Test
