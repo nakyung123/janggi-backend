@@ -26,6 +26,14 @@ public class GuardConfig {
     private static final String PATH = "/events";
     private static final String STATS = "/stats";
 
+    /**
+     * 기보 주소. <b>{@code /*} 를 붙여야 {@code /games/7} 까지 걸린다</b> - 서블릿 패턴은
+     * {@code /games} 만 적으면 그 주소 하나만 본다.
+     */
+    private static final String GAMES = "/games";
+
+    private static final String GAMES_ALL = "/games/*";
+
     @Bean
     FilterRegistrationBean<RateLimitFilter> rateLimit(GuardProperties props) {
         FilterRegistrationBean<RateLimitFilter> bean =
@@ -79,6 +87,38 @@ public class GuardConfig {
         FilterRegistrationBean<TokenFilter> bean =
                 new FilterRegistrationBean<>(new TokenFilter(token));
         bean.addUrlPatterns(STATS);
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+        return bean;
+    }
+
+    /**
+     * 기보 주소의 건수 제한. <b>측정과 셈을 같이 쓰지 않는다.</b>
+     *
+     * <p>같은 {@code RateLimitFilter} 를 두 주소에 걸면 셈을 공유한다 - 기보를 올리는
+     * 것이 사용자 기록 받을 몫을 깎아먹는다. {@code /stats} 를 따로 둔 까닭과 같다.
+     */
+    @Bean
+    FilterRegistrationBean<RateLimitFilter> gameRateLimit(GuardProperties props) {
+        FilterRegistrationBean<RateLimitFilter> bean =
+                new FilterRegistrationBean<>(
+                        new RateLimitFilter(props.gameLimitPerMinute(), Duration.ofMinutes(1)));
+        bean.addUrlPatterns(GAMES, GAMES_ALL);
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return bean;
+    }
+
+    /**
+     * 기보 하나의 크기 한도. <b>측정보다 훨씬 크다</b> - 한 판이 4만 자쯤이다.
+     *
+     * <p>이 문지기가 없으면 올리는 주소에 <b>상한이 아예 없다.</b> 국면 개수는
+     * {@code GameStore} 가 세지만, 그건 본문을 이미 다 읽어 들인 뒤의 일이다. 메모리로
+     * 들어오기 전에 끊는 자리가 따로 있어야 한다.
+     */
+    @Bean
+    FilterRegistrationBean<RequestSizeFilter> gameRequestSize(GuardProperties props) {
+        FilterRegistrationBean<RequestSizeFilter> bean =
+                new FilterRegistrationBean<>(new RequestSizeFilter(props.maxGameBytes()));
+        bean.addUrlPatterns(GAMES, GAMES_ALL);
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
         return bean;
     }

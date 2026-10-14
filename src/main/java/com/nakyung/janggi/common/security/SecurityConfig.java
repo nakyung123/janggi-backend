@@ -106,6 +106,11 @@ public class SecurityConfig {
                                                 // 빼 두면 400 이 403 으로 바뀌어 나간다.
                                                 "/error")
                                         .permitAll()
+                                        // **로그인해야 열린다.** 쿠키가 없으면 우리
+                                        // 거절 처리기가 404 로 돌려보낸다 - 403 은
+                                        // "거기 뭔가 있다" 를 알려주는 셈이다.
+                                        .requestMatchers("/games", "/games/**")
+                                        .authenticated()
                                         .anyRequest()
                                         .denyAll())
                 .csrf(
