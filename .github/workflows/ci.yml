@@ -90,10 +90,20 @@ jobs:
 
       - name: 띄워서 직접 불러 본다
         run: |
+          # **로그인 설정값도 줘야 뜬다.** 없으면 Signer 가 생성자에서 막고
+          # GOOGLE_CLIENT_ID 자리도 풀리지 않아 컨텍스트가 통째로 안 뜬다 - 깜빡했을 때
+          # 열리는 쪽이 아니라 닫히는 쪽으로 만든 것이 여기서도 일한다.
+          #
+          # **진짜 값이 아니다.** 이 검사는 로그인을 해 보지 않는다 - 주소가 서고 측정이
+          # 계속 들어오는지만 본다. 진짜 로그인은 가짜 구글을 세운 LoginFlowTest 가
+          # 테스트 단계에서 이미 끝까지 돌려 봤다.
           docker run -d --name ci --network ci-net -p 8080:9090 -e PORT=9090 \
             -e SPRING_DATASOURCE_URL=jdbc:postgresql://ci-db:5432/ci \
             -e SPRING_DATASOURCE_USERNAME=postgres \
             -e SPRING_DATASOURCE_PASSWORD=ci \
+            -e JANGGI_TOKEN_SECRET=ci-에서만-쓰는-열쇠-1234567890 \
+            -e GOOGLE_CLIENT_ID=ci-클라이언트 \
+            -e GOOGLE_CLIENT_SECRET=ci-비밀 \
             janggi-events:ci
 
           for i in $(seq 1 30); do
@@ -102,7 +112,11 @@ jobs:
               echo "준비됨 (${i}초)"; break
             fi
             # 기다리기 전에 살아 있는지부터 본다. 죽은 것을 끝까지 기다린 적이 있다.
-            if [ -z "$(docker ps -q -f name=ci)" ]; then
+            # **이름을 정확히 맞춘다.** `-f name=ci` 는 부분 일치라 **ci-db 에도 맞는다.**
+            # DB 가 살아 있으니 아래 줄이 영영 안 울렸고, 2026-10-14 에 앱이 죽었는데도
+            # 30초를 기다린 뒤 "받음 000" 으로 끝났다. 바로 위에 "죽은 것을 끝까지
+            # 기다린 적이 있다" 고 적어 두고 만든 검사가 정작 일하지 않았다.
+            if [ -z "$(docker ps -q -f name=^ci$)" ]; then
               echo "::error::컨테이너가 죽었습니다."
               docker logs ci; exit 1
             fi
@@ -135,7 +149,12 @@ jobs:
           # JDBC · Postgres 를 지나는 길이 생겼으니, 그 길 끝에서도 글자가 성한지 본다.
           기대 "한글이 성한지" "사파리 17" "$(docker exec ci-db psql -qtAX -U postgres -d ci \
                  -c 'select browser from event')"
-          기대 "적용된 판"   1 "$(docker exec ci-db psql -qtAX -U postgres -d ci \
+          # **숫자를 박지 않는다.** 저장소의 마이그레이션 파일 수를 세어 쓴다 -
+          # 박아 두면 표를 바꿀 때마다 여기가 한 번씩 빨간불이 되고, 그러면
+          # "또 그거겠지" 하며 숫자만 고치고 넘어가게 된다. 세어 쓰면 **파일은
+          # 늘었는데 안 돌아간 경우**를 잡는 검사가 된다.
+          MIGRATIONS=$(ls src/main/resources/db/migration/V*.sql | wc -l | tr -d ' ')
+          기대 "적용된 판"   "$MIGRATIONS" "$(docker exec ci-db psql -qtAX -U postgres -d ci \
                  -c 'select count(*) from flyway_schema_history where success')"
 
           # **토큰을 안 걸고 띄웠으므로 /stats 는 닫혀 있어야 한다.** 설정을 깜빡했을 때
