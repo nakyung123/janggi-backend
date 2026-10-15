@@ -4,13 +4,25 @@
 
 모든 답변과 주석은 **한국어**로 쓴다.
 
+**이름이 세 가지다.** 헷갈리기 쉬워서 적어 둔다.
+
+| 무엇 | 이름 |
+| --- | --- |
+| 깃허브 저장소 | `janggi-backend` |
+| 내 컴퓨터 폴더 | `janggi-events` |
+| Cloud Run 서비스 · GCP 프로젝트 | `janggi-events` |
+
+2026-10-15 에 저장소 이름만 `janggi-server` 에서 바꿨다. **Cloud Run 서비스 이름은
+일부러 그대로 뒀다** - 바꾸면 서비스 주소가 바뀌어서 Vercel 되돌림 설정과 계정 치우는
+작업의 주소를 다 고쳐야 한다. 폴더 이름도 그대로 뒀다.
+
 ## 이 서버의 자리
 
 ```
 사람의 폰
    │
    ▼
-Vercel (janggi-board)   화면을 준다      <- 없으면 사이트가 없다
+Vercel (janggi-frontend)   화면을 준다      <- 없으면 사이트가 없다
    │  /api/ 로 오는 것만 넘긴다
    ▼
 Cloud Run (여기)        기록을 받는다    <- 없어도 장기는 둬진다
@@ -21,7 +33,7 @@ Cloud Run (여기)        기록을 받는다    <- 없어도 장기는 둬진�
 감당할 수 있다.** 이 전제가 깨지는 기능(사람이 답을 기다리는 것)을 여기 붙이려면
 설계를 다시 봐야 한다.
 
-화면 쪽 저장소는 `janggi-board` 다. 두 저장소는 **코드로 안 붙고 주소 한 줄로만**
+화면 쪽 저장소는 `janggi-frontend` 다. 두 저장소는 **코드로 안 붙고 주소 한 줄로만**
 붙는다(`vercel.json` 의 되돌림).
 
 ## 어디에 무엇이 있나
@@ -416,7 +428,7 @@ JSON 아닌 줄·깨진 글자·이벤트 0건을 각각 넣어서 빨간불이 
 그리고 **띄워서 직접 불러 본다.** 테스트가 통과한 것과 진짜로 도는 것은 다르다.
 
 ```bash
-java -jar build/libs/janggi-server-*.jar
+java -jar build/libs/janggi-backend-*.jar
 curl -X POST localhost:8080/events -H "Content-Type: application/json" --data-binary @본문.json
 ```
 
@@ -427,8 +439,8 @@ curl -X POST localhost:8080/events -H "Content-Type: application/json" --data-bi
 다르다 - `gcp` 형식이 없다는 것도, jar 는 멀쩡한데 컨테이너가 시작조차 못 하면서 드러났다.
 
 ```bash
-docker build -t janggi-server:dev .
-docker run -d --name t -p 8080:9090 -e PORT=9090 janggi-server:dev
+docker build -t janggi-backend:dev .
+docker run -d --name t -p 8080:9090 -e PORT=9090 janggi-backend:dev
 curl -s -o /dev/null -w '%{http_code}
 ' localhost:8080/actuator/health   # 200
 docker logs t                      # 줄마다 전체가 JSON 인지

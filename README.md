@@ -15,7 +15,7 @@
     <br />
     <a href="#재-본-숫자">재 본 숫자</a>
     &middot;
-    <a href="https://github.com/nakyung123/janggi-board">화면 쪽 저장소</a>
+    <a href="https://github.com/nakyung123/janggi-frontend">화면 쪽 저장소</a>
     &middot;
     <a href="https://github.com/nakyung123/janggi-events/issues/new">문제 알리기</a>
   </p>
@@ -72,7 +72,7 @@
 사람의 폰
    │
    ▼
-Vercel (janggi-board)   화면을 준다      <- 없으면 사이트가 없다
+Vercel (janggi-frontend)   화면을 준다      <- 없으면 사이트가 없다
    │  /api/ 로 오는 것만 넘긴다
    ▼
 Cloud Run (여기)        기록을 받는다    <- 없어도 장기는 둬진다
@@ -270,7 +270,7 @@ curl -H 'X-Stats-Token: 아무거나' 'localhost:8080/stats?days=7'
 nakyung123 - [github.com/nakyung123](https://github.com/nakyung123)
 
 프로젝트: [janggi-events](https://github.com/nakyung123/janggi-events) ·
-[janggi-board](https://github.com/nakyung123/janggi-board)
+[janggi-frontend](https://github.com/nakyung123/janggi-frontend)
 
 <p align="right">(<a href="#readme-top">맨 위로</a>)</p>
 

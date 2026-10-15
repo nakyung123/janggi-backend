@@ -136,7 +136,7 @@ Cloud Scheduler 가 OIDC 로 부르게 하고, 서버가 그 토큰을 확인한
 2  POST /internal/purge  누가 부를 수 있나 먼저, 지우기는 그다음
 3  경합 검사            연결 둘로 순서를 뒤집어 본다
 4  Cloud Scheduler      API 켜기 · 서비스 계정 · 작업 만들기
-5  프런트 탈퇴 단추      janggi-board 저장소
+5  프런트 탈퇴 단추      janggi-frontend 저장소
 ```
 
 **2번은 막는 것을 먼저 만든다.** 지우는 코드를 먼저 쓰고 막는 것을 나중에 붙이면, 그

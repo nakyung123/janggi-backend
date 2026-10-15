@@ -51,7 +51,7 @@ public class JanggiApplication {
             BuildProperties b = 빌드.getIfAvailable();
             String 커밋 = System.getenv().getOrDefault("JANGGI_COMMIT", "unknown");
             log.info(
-                    "janggi-server 떴습니다. 판 {} · 커밋 {} · 지은 때 {}",
+                    "janggi-backend 떴습니다. 판 {} · 커밋 {} · 지은 때 {}",
                     b == null ? "unknown" : b.getVersion(),
                     커밋,
                     b == null ? "unknown" : b.getTime());
