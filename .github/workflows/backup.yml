@@ -22,8 +22,13 @@ permissions:
   id-token: write # GCP 에 열쇠 파일 없이 들어가려면 필요하다
 
 jobs:
-  백업:
-    runs-on: ubuntu-latest
+  # 일감 키는 영문·숫자·_·- 만 된다. 한글을 쓰면 작업이 아예 안 뜬다
+  # (HTTP 422: The identifier is invalid). 한글은 위의 name: 에만 쓴다.
+  backup:
+    # **`ubuntu-latest` 를 쓰지 않는다.** ci.yml 과 같은 까닭이다 - 그 이름은 어느 날
+    # 새 우분투를 가리키고, 그러면 아무것도 안 바꾼 아침에 빨간불이 뜬다.
+    # 2026-10-19 에 26 으로 옮겨간다는 예고가 떠 있다.
+    runs-on: ubuntu-24.04
     steps:
       # pg_dump 는 **자기보다 높은 판의 서버를 못 받는다.** Neon 이 18.6 이라
       # postgres:18 로 고정한다. Neon 이 19 로 올라가면 여기서 깨지는데, 깨지면
