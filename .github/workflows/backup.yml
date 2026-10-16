@@ -1,0 +1,97 @@
+# 측정 기록(event 표)을 매일 한 번 받아서 Cloud Storage 에 둔다.
+#
+# **왜 event 만인가** - 기보와 계정은 서버에만 있는 것이 아니다. 기보는 기기에 원본이
+# 있어서 다시 올라오고, 계정은 다시 로그인하면 다시 생긴다. **측정 기록만 서버에만
+# 있다.** 그리고 event 를 지우는 코드가 없어서 쌓이기만 한다.
+#
+# **왜 02:23 인가** - GitHub 예약 실행은 부하가 높은 시간에 늦거나 아예 안 돈다.
+# 정각은 모두가 적는 시각이라 피한다.
+#
+# **안 도는 경우는 못 잡는다.** 실패하면 GitHub 이 메일을 보내지만, 아예 안 돌면
+# 실패도 안 해서 조용하다. 아는 구멍이고 BACKUP.md 에 적어 두었다.
+
+name: 측정 기록 백업
+
+on:
+  schedule:
+    - cron: "23 17 * * *" # UTC. 한국 시각 02:23
+  workflow_dispatch: # 마이그레이션 올리기 전에 손으로 돌린다
+
+permissions:
+  contents: read
+  id-token: write # GCP 에 열쇠 파일 없이 들어가려면 필요하다
+
+jobs:
+  백업:
+    runs-on: ubuntu-latest
+    steps:
+      # pg_dump 는 **자기보다 높은 판의 서버를 못 받는다.** Neon 이 18.6 이라
+      # postgres:18 로 고정한다. Neon 이 19 로 올라가면 여기서 깨지는데, 깨지면
+      # 이 일감이 실패해서 메일이 오므로 조용히 썩지는 않는다.
+      - name: event 표를 받는다
+        env:
+          DB: ${{ secrets.BACKUP_DB_URL }}
+        run: |
+          set -euo pipefail
+          NAME="event-$(date -u +%Y%m%d-%H%M%S).dump"
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+
+          # 주소를 인자로 주면 ps 에 보인다. 환경 변수로 넘긴다.
+          docker run --rm -e DB -v "$PWD:/out" postgres:18 \
+            sh -c 'pg_dump "$DB" --table=event --format=custom --no-owner --no-acl --file=/out/'"$NAME"
+
+          ls -l "$NAME"
+
+      # **파일이 생겼다고 백업이 된 것은 아니다.** 0바이트거나 중간에 끊긴 파일도
+      # 생긴다. 목록을 읽어 내용이 들어 있는지 본다.
+      - name: 받은 파일이 멀쩡한지 본다
+        run: |
+          set -euo pipefail
+          [ -s "$NAME" ] || { echo "파일이 비었다"; exit 1; }
+
+          docker run --rm -v "$PWD:/in" postgres:18 pg_restore --list "/in/$NAME" > list.txt
+          cat list.txt
+
+          # 표·자료·순서의 현재 값이 다 있어야 한다. 순서 값이 빠지면 되살린 뒤
+          # 자동 번호가 1부터 시작해 기존 줄과 부딪힌다.
+          grep -q "TABLE public event"       list.txt || { echo "표가 없다";        exit 1; }
+          grep -q "TABLE DATA public event"  list.txt || { echo "자료가 없다";      exit 1; }
+          grep -q "SEQUENCE SET public event_id_seq" list.txt || { echo "순서 값이 없다"; exit 1; }
+
+      # `token_format: access_token` 으로 토큰을 바로 받는다. 이러면 gcloud 를 따로
+      # 깔 필요가 없다 - 아래 올리는 단계가 REST 라 gcloud 를 아예 안 쓴다.
+      - name: GCP 에 들어가기 (열쇠 파일 없이)
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: janggi-events
+          workload_identity_provider: projects/982664928901/locations/global/workloadIdentityPools/github/providers/janggi-events
+          service_account: janggi-backup@janggi-events.iam.gserviceaccount.com
+          token_format: access_token
+
+      # **`gcloud storage cp` 를 못 쓴다.** 올리기 전에 목적지를 먼저 읽어 보는데
+      # (storage.objects.get) 이 계정에는 읽기 권한이 없다. 권한을 느슨하게 하는 대신
+      # REST 로 올린다. 이 계정은 새 파일을 더할 수만 있고 읽지도 지우지도 못한다.
+      - name: 버킷에 올린다
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          URL="https://storage.googleapis.com/upload/storage/v1/b/janggi-events-backup/o?uploadType=media&name=$NAME"
+
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$NAME" "$URL" -o up.json
+
+          cat up.json
+          # 올라간 크기가 내 파일과 같은지 본다. 다르면 중간에 끊긴 것이다.
+          python3 - <<'PY'
+          import json, os, sys
+          d = json.load(open("up.json"))
+          here = os.path.getsize(os.environ["NAME"])
+          there = int(d["size"])
+          print("올린 것 %d 바이트 / 버킷에 %d 바이트" % (here, there))
+          if here != there:
+              sys.exit("크기가 다르다")
+          PY
