@@ -119,6 +119,35 @@ unzip -l <jar> | grep ClassName
 
 Boot 3.5 는 2026-06-30 에, 4.0 은 2026-12-31 에 지원이 끝난다. 그래서 4.1 이다.
 
+## 환경 변수
+
+**값은 코드에 안 넣는다.** 로컬은 `.env`, Cloud Run 은 서비스 환경 변수와
+Secret Manager 다. 아래 이름은 `application.properties` 의 설정 키에서 온다 -
+스프링이 `janggi.stats.token` 을 `JANGGI_STATS_TOKEN` 으로도 읽는다.
+
+| 변수 | 언제 필요한가 | 무엇 |
+| --- | --- | --- |
+| `SPRING_DATASOURCE_URL` | 늘 | DB 주소. **없으면 4초 만에 죽는다** |
+| `SPRING_DATASOURCE_USERNAME` | 늘 | DB 계정 |
+| `SPRING_DATASOURCE_PASSWORD` | 늘 | DB 비밀번호. 운영은 Secret Manager |
+| `JANGGI_STATS_TOKEN` | `/stats` 를 열 때 | 통계 열쇠. **안 걸면 `/stats` 가 404** |
+| `GOOGLE_CLIENT_ID` | 로그인을 쓸 때 | 구글 OAuth 클라이언트 |
+| `GOOGLE_CLIENT_SECRET` | 로그인을 쓸 때 | 구글 OAuth 비밀 |
+| `JANGGI_TOKEN_SECRET` | 로그인을 쓸 때 | 로그인 쿠키에 서명하는 열쇠 |
+| `JANGGI_LOGIN_REDIRECT` | 선택 | 로그인 뒤 돌아갈 곳. 기본 `/` |
+| `JANGGI_GUARD_LIMIT_PER_MINUTE` | 선택 | 분당 받을 기록 수 |
+| `JANGGI_GUARD_GAME_LIMIT_PER_MINUTE` | 선택 | 분당 받을 기보 수 |
+| `JANGGI_GUARD_MAX_BODY_BYTES` | 선택 | 본문 크기 상한 |
+| `JANGGI_GUARD_MAX_GAME_BYTES` | 선택 | 기보 본문 크기 상한 |
+| `JANGGI_PURGE_CALLER` | 정리를 쓸 때 | `/internal/purge` 를 부를 수 있는 계정 |
+| `JANGGI_PURGE_AUDIENCE` | 정리를 쓸 때 | 토큰의 대상 |
+| `JANGGI_PURGE_ISSUER` | 선택 | 기본 `https://accounts.google.com` |
+| `JANGGI_PURGE_JWKS_URI` | 선택 | 토큰 서명을 확인할 열쇠 주소 |
+| `PORT` | 선택 | 기본 8080. Cloud Run 이 넣어 준다 |
+
+**빠뜨렸을 때 열리는 것이 아니라 닫히는 쪽으로 기본값을 둔다.** `JANGGI_STATS_TOKEN`
+을 깜빡하면 `/stats` 가 아무나 들어오는 것이 아니라 404 가 된다.
+
 ## 데이터베이스
 
 **Neon Postgres(싱가포르).** 도쿄가 없어서 제일 가까운 데로 갔다. 접속 정보는 코드에
