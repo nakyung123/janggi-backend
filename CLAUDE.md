@@ -59,7 +59,7 @@ java -jar build/libs/janggi-backend-*.jar    # 로그를 읽을 때. bootRun 은
 - **main 에 푸시하는 것.** CI 가 Cloud Run 에 배포한다.
 - **마이그레이션.** 운영 DB 의 구조를 바꾼다. 올리기 전에 백업 작업(`.github/workflows/backup.yml`)을 손으로 돌린다.
 - **운영 DB 의 데이터를 지우거나 고치는 것.** 부하 시험 기록 지우기도 포함한다.
-- **이벤트 이름을 `EventName.java` 에서 빼는 것.** 프론트가 보내는 기록이 버려진다. 더할 때는 서버를 먼저 배포한다.
+- **이벤트 이름을 `EventName.java` 에서 빼는 것.** 프론트가 보내는 기록이 버려진다. 더할 때는 서버를 먼저 배포한다. 프론트가 아직 보내는 이름을 빼면 CI(`scripts/check-event-names.py`)가 막는다.
 - **인증·권한.** 토큰 서명 열쇠, Secret Manager, IAM, Workload Identity 설정.
 
 ## 이 파일

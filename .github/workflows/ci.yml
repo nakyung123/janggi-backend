@@ -64,6 +64,12 @@ jobs:
             exit 1
           fi
 
+      # 프론트(janggi-frontend main)가 보내는 이벤트 이름을 이 서버가 다 받는지 본다. 프론트가
+      # 아직 보내는 이름을 EventName.java 에서 빼면 400 으로 거절되고, 프론트는 답을 안 읽으므로
+      # 기록만 조용히 버려진다.
+      - name: 프론트가 보내는 이벤트 이름을 다 받는지
+        run: python3 scripts/check-event-names.py
+
       - name: 이미지 만들기
         # 커밋을 이미지 안에 넣는다. 뜰 때 로그에 찍혀서 "지금 실서버가 어느 코드인가" 에
         # 한 번에 답할 수 있다.
